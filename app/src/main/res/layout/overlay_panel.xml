@@ -3,8 +3,8 @@
     android:id="@+id/overlay_root"
     android:layout_width="wrap_content"
     android:layout_height="wrap_content"
-    android:orientation="horizontal"
-    android:gravity="top|start">
+    android:gravity="top|start"
+    android:orientation="horizontal">
 
     <TextView
         android:id="@+id/bubble"
@@ -13,14 +13,14 @@
         android:layout_margin="6dp"
         android:background="@drawable/ic_bubble_oval"
         android:gravity="center"
-        android:text="T"
+        android:text="@string/bubble_label"
         android:textColor="#1B1B26"
         android:textSize="24sp"
         android:textStyle="bold" />
 
     <LinearLayout
         android:id="@+id/panel"
-        android:layout_width="270dp"
+        android:layout_width="280dp"
         android:layout_height="wrap_content"
         android:background="@drawable/panel_bg"
         android:elevation="12dp"
@@ -38,9 +38,26 @@
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:text="TETRA"
+                android:text="@string/app_name"
                 android:textColor="@color/tetra_accent"
                 android:textSize="17sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/phase_chip"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginEnd="8dp"
+                android:background="@drawable/chip_bg"
+                android:gravity="center"
+                android:minWidth="0dp"
+                android:paddingLeft="10dp"
+                android:paddingRight="10dp"
+                android:paddingTop="4dp"
+                android:paddingBottom="4dp"
+                android:text="● Stopped"
+                android:textColor="@color/tetra_text_dim"
+                android:textSize="11sp"
                 android:textStyle="bold" />
 
             <TextView
@@ -60,7 +77,7 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
             android:minLines="2"
-            android:text="Starting…"
+            android:text="@string/status_starting"
             android:textColor="@color/tetra_text"
             android:textSize="13sp" />
 
@@ -69,7 +86,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="4dp"
-            android:text="Max tile: — · Moves: 0"
+            android:text="@string/stats_placeholder"
             android:textColor="@color/tetra_text_dim"
             android:textSize="12sp" />
 
@@ -80,21 +97,39 @@
             android:orientation="horizontal">
 
             <androidx.appcompat.widget.AppCompatButton
-                android:id="@+id/play_btn"
+                android:id="@+id/start_btn"
                 style="@style/TetraChip"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
-                android:layout_marginEnd="8dp"
+                android:layout_marginEnd="6dp"
                 android:layout_weight="1"
-                android:text="⏸ Pause" />
+                android:backgroundTint="@color/transport_start"
+                android:text="▶ Start"
+                android:textColor="#1B1B26"
+                android:textStyle="bold" />
 
             <androidx.appcompat.widget.AppCompatButton
-                android:id="@+id/speed_btn"
+                android:id="@+id/pause_btn"
+                style="@style/TetraChip"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginEnd="6dp"
+                android:layout_weight="1"
+                android:backgroundTint="@color/transport_pause"
+                android:text="⏸ Pause"
+                android:textColor="#1B1B26"
+                android:textStyle="bold" />
+
+            <androidx.appcompat.widget.AppCompatButton
+                android:id="@+id/stop_btn"
                 style="@style/TetraChip"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:text="⚡ 0.5s" />
+                android:backgroundTint="@color/transport_stop"
+                android:text="⏹ Stop"
+                android:textColor="#1B1B26"
+                android:textStyle="bold" />
         </LinearLayout>
 
         <LinearLayout
@@ -104,30 +139,38 @@
             android:orientation="horizontal">
 
             <androidx.appcompat.widget.AppCompatButton
-                android:id="@+id/strategy_btn"
+                android:id="@+id/speed_btn"
                 style="@style/TetraChip"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_marginEnd="8dp"
                 android:layout_weight="1"
-                android:singleLine="true"
-                android:ellipsize="end"
-                android:text="Expectimax" />
+                android:text="@string/speed_default" />
 
             <androidx.appcompat.widget.AppCompatButton
-                android:id="@+id/calibrate_btn"
+                android:id="@+id/strategy_btn"
                 style="@style/TetraChip"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:text="⌖ Align" />
+                android:singleLine="true"
+                android:ellipsize="end"
+                android:text="Expectimax" />
         </LinearLayout>
+
+        <androidx.appcompat.widget.AppCompatButton
+            android:id="@+id/calibrate_btn"
+            style="@style/TetraChip"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="⌖ Align board" />
 
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="10dp"
-            android:text="Open your 2048 app, then bubble → Align to frame the board. Resume after game over."
+            android:text="@string/overlay_hint"
             android:textColor="@color/tetra_text_dim"
             android:textSize="11sp" />
 
@@ -137,7 +180,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="10dp"
-            android:text="✕ Stop Tetra"
+            android:text="@string/quit_tetra"
             android:backgroundTint="@color/tetra_bad" />
     </LinearLayout>
 </LinearLayout>

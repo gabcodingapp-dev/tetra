@@ -110,7 +110,7 @@ class ExpectimaxSolver(val depth: Int, heuristicIdx: Int, cacheLimit: Int = MAX_
 
     override fun pickMove(board: ULong): Int {
         val d = if (depth <= 0) pickDepth(board) - depth else depth
-        val move = (helper(board, d, 0) and 3).toInt()
+        val move = (helper(board, d, 0) and 3L).toInt()
         updateCachePointers()
         return move
     }
@@ -131,7 +131,7 @@ class ExpectimaxSolver(val depth: Int, heuristicIdx: Int, cacheLimit: Int = MAX_
 
         if (curDepth >= CACHE_DEPTH) {
             val cached = cache.get(board.toLong())
-            if (cached != null && (cached and 0xF) >= curDepth) return cached shr 4
+            if (cached != null && (cached and 0xFL) >= curDepth) return cached shr 4
         }
 
         var bestScore = Heuristics.MIN_EVAL
@@ -219,7 +219,7 @@ class MinimaxSolver(val depth: Int, heuristicIdx: Int) : Solver {
 
     override fun pickMove(board: ULong): Int {
         val d = if (depth <= 0) pickDepth(board) - depth else depth
-        return (helper(board, d, Heuristics.MIN_EVAL, Heuristics.MAX_EVAL, 0) and 3).toInt()
+        return (helper(board, d, Heuristics.MIN_EVAL, Heuristics.MAX_EVAL, 0) and 3L).toInt()
     }
 
     private fun helper(board: ULong, curDepth: Int, alphaIn: Long, beta0: Long, fours: Int): Long {
@@ -322,7 +322,7 @@ class GameSim(private val rnd: java.util.Random) {
         val empty = IntArray(16)
         var n = 0
         for (i in 0 until 16) {
-            if (((b shr (i shl 2)) and 0xF) == 0uL) empty[n++] = i
+            if (((b shr (i shl 2)) and 0xFuL) == 0uL) empty[n++] = i
         }
         require(n > 0) { "board full" }
         val pos = empty[rnd.nextInt(n)]

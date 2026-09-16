@@ -8,7 +8,6 @@ import android.app.Service
 import android.content.Context
 import android.content.Intent
 import android.graphics.PixelFormat
-import android.os.Build
 import android.os.IBinder
 import android.view.Gravity
 import android.view.LayoutInflater
@@ -42,7 +41,10 @@ class OverlayService : Service() {
     private var panelView: View? = null
     private var statusView: TextView? = null
     private var statsView: TextView? = null
-    private var playBtn: TextView? = null
+    private var phaseChip: TextView? = null
+    private var startBtn: View? = null
+    private var pauseBtn: View? = null
+    private var stopBtn: View? = null
     private var speedBtn: TextView? = null
     private var strategyBtn: TextView? = null
 
@@ -61,7 +63,6 @@ class OverlayService : Service() {
         wm = getSystemService(Context.WINDOW_SERVICE) as WindowManager
         createChannel()
         startForeground(NOTIF_ID, buildNotification())
-        BotState.overlayRunning.value = true
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -83,7 +84,7 @@ class OverlayService : Service() {
         )
         lp.gravity = Gravity.TOP or Gravity.START
         val dm = resources.displayMetrics
-        lp.x = dm.widthPixels - dp(96)
+        lp.x = dm.widthPixels - dp(110)
         lp.y = dm.heightPixels / 3
         params = lp
         wm.addView(root, lp)
@@ -92,18 +93,24 @@ class OverlayService : Service() {
         panelView = root?.findViewById(R.id.panel)
         statusView = root?.findViewById(R.id.status_tv)
         statsView = root?.findViewById(R.id.stats_tv)
-        playBtn = root?.findViewById(R.id.play_btn)
+        phaseChip = root?.findViewById(R.id.phase_chip)
+        startBtn = root?.findViewById(R.id.start_btn)
+        pauseBtn = root?.findViewById(R.id.pause_btn)
+        stopBtn = root?.findViewById(R.id.stop_btn)
         speedBtn = root?.findViewById(R.id.speed_btn)
         strategyBtn = root?.findViewById(R.id.strategy_btn)
 
         bubbleView?.setOnTouchListener(bubbleTouch)
         root?.findViewById<View>(R.id.close_btn)?.setOnClickListener { setPanelVisible(false) }
-        playBtn?.setOnClickListener { togglePlay() }
+        startBtn?.setOnClickListener { pressStart() }
+        pauseBtn?.setOnClickListener { pressPause() }
+        stopBtn?.setOnClickListener { pressStop() }
         speedBtn?.setOnClickListener { cycleSpeed() }
         strategyBtn?.setOnClickListener { cycleStrategy() }
         root?.findViewById<View>(R.id.calibrate_btn)?.setOnClickListener { openCalibration() }
         root?.findViewById<View>(R.id.quit_btn)?.setOnClickListener { stopSelf() }
 
+        paintWidgets()
         observe()
     }
 
@@ -142,10 +149,33 @@ class OverlayService : Service() {
         if (visible) paintWidgets()
     }
 
-    private fun togglePlay() {
+    /** Bot required to advance a fresh round. */
+    private fun pressStart() {
         BotState.autoPaused.value = false
-        BotState.playing.value = !BotState.playing.value
-        if (BotState.playing.value) BotState.lastBoard.value = null
+        BotState.phase.value = BotState.Phase.RUNNING
+        BotState.lastBoard.value = null
+        BotState.moves.value = 0
+        BotState.maxTileValue.value = 0
+        BotState.status.value = "▶ Started — reading the board…"
+        paintWidgets()
+    }
+
+    /** Freeze the bot in place; nothing moves until Start again. */
+    private fun pressPause() {
+        BotState.autoPaused.value = false
+        BotState.phase.value = BotState.Phase.PAUSED
+        BotState.status.value = "Paused"
+        paintWidgets()
+    }
+
+    /** Full stop + reset; the bot ignores the board until Start. */
+    private fun pressStop() {
+        BotState.autoPaused.value = false
+        BotState.phase.value = BotState.Phase.STOPPED
+        BotState.lastBoard.value = null
+        BotState.moves.value = 0
+        BotState.maxTileValue.value = 0
+        BotState.status.value = "Stopped"
         paintWidgets()
     }
 
@@ -173,18 +203,37 @@ class OverlayService : Service() {
     }
 
     private fun paintWidgets() {
-        playBtn?.text = if (BotState.playing.value) "⏸ Pause" else "▶ Resume"
-        playBtn?.setTextColor(resources.getColor(if (BotState.playing.value) R.color.tetra_text else R.color.tetra_good, null))
+        paintPhaseUi(BotState.phase.value)
+
         speedBtn?.text = "⚡ ${Prefs.speedMs / 1000.0}s"
         val id = Prefs.strategyId
-        strategyBtn?.text = "🧠 ${Solvers.OPTIONS.firstOrNull { it.first == id }?.second?.removePrefix("Expectimax ")?.let { if (id.startsWith("expectimax")) "Exp. $it" else it } ?: id}"
+        strategyBtn?.text =
+            Solvers.OPTIONS.firstOrNull { it.first == id }?.second
+                ?.let { if (id.startsWith("expectimax")) "Exp. ${it.removePrefix("Expectimax ")}" else it }
+                ?: id
+    }
+
+    private fun paintPhaseUi(phase: BotState.Phase) {
+        startBtn?.isEnabled = phase != BotState.Phase.RUNNING
+        pauseBtn?.isEnabled = phase == BotState.Phase.RUNNING
+        stopBtn?.isEnabled = phase != BotState.Phase.STOPPED
+
+        val (label, color) = when (phase) {
+            BotState.Phase.RUNNING -> "● Running" to R.color.tetra_good
+            BotState.Phase.PAUSED -> "● Paused" to R.color.tetra_warn
+            BotState.Phase.STOPPED -> "● Stopped" to R.color.tetra_text_dim
+        }
+        phaseChip?.text = label
+        phaseChip?.setTextColor(resources.getColor(color, null))
     }
 
     private fun observe() {
         scope.launch {
-            kotlinx.coroutines.flow.combine(
-                BotState.status, BotState.maxTileValue, BotState.moves, BotState.connected
-            ) { status, mt, moves, connected ->
+            combine(
+                BotState.status, BotState.maxTileValue, BotState.moves,
+                BotState.connected, BotState.phase
+            ) { status, mt, moves, connected, phase ->
+                paintPhaseUi(phase)
                 val st = if (!connected) "⚠ Enable accessibility in Settings first" else status
                 "$st\nMax tile: ${if (mt > 0) mt else "—"} · Moves: $moves"
             }.collectLatest { statusView?.text = it }
@@ -217,7 +266,6 @@ class OverlayService : Service() {
     private fun dpTol(): Int = dp(12)
 
     override fun onDestroy() {
-        BotState.overlayRunning.value = false
         root?.let { runCatching { wm.removeView(it) } }
         root = null
         scope.cancel()

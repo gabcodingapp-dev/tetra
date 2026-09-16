@@ -99,7 +99,7 @@ object Board {
         var exists = 0
         var i = 0
         while (i < 64) {
-            exists = exists or (1 shl ((b shr i) and 0xF).toInt())
+            exists = exists or (1 shl ((b shr i) and 0xFuL).toInt())
             i += 4
         }
         exists = exists and 0xFFFE
@@ -111,7 +111,7 @@ object Board {
         var max = 0
         var i = 0
         while (i < 64) {
-            val v = ((b shr i) and 0xF).toInt()
+            val v = ((b shr i) and 0xFuL).toInt()
             if (v > max) max = v
             i += 4
         }
@@ -123,7 +123,7 @@ object Board {
         var score = 0L
         var i = 0
         while (i < 64) {
-            val tile = ((b shr i) and 0xF).toInt()
+            val tile = ((b shr i) and 0xFuL).toInt()
             if (tile > 1) score += (tile - 1).toLong() shl tile
             i += 4
         }
@@ -133,7 +133,7 @@ object Board {
     /** write nibble for visual cell (r, c) */
     fun nibbleOffset(r: Int, c: Int): Int = (3 - r) * 16 + (3 - c) * 4
 
-    fun cellExponent(b: ULong, r: Int, c: Int): Int = ((b shr nibbleOffset(r, c)) and 0xF).toInt()
+    fun cellExponent(b: ULong, r: Int, c: Int): Int = ((b shr nibbleOffset(r, c)) and 0xFuL).toInt()
 
-    fun exponentAtPos(b: ULong, pos: Int): Int = ((b shr (pos shl 2)) and 0xF).toInt()
+    fun exponentAtPos(b: ULong, pos: Int): Int = ((b shr (pos shl 2)) and 0xFuL).toInt()
 }

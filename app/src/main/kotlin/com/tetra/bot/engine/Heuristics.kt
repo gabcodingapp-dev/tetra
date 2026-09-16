@@ -8,8 +8,8 @@ object Heuristics {
     const val MIN_EVAL = 0L
     val MAX_EVAL = 16L shl 41
 
-    inline fun tileExp(b: ULong, r: Int, c: Int): Int = ((b shr (((r shl 2) or c) shl 2)) and 0xF).toInt()
-    inline fun tileExpPos(b: ULong, pos: Int): Int = ((b shr pos) and 0xF).toInt()
+    inline fun tileExp(b: ULong, r: Int, c: Int): Int = ((b shr (((r shl 2) or c) shl 2)) and 0xFuL).toInt()
+    inline fun tileExpPos(b: ULong, pos: Int): Int = ((b shr pos) and 0xFuL).toInt()
     inline fun tileVal(b: ULong, r: Int, c: Int): Long {
         val e = tileExp(b, r, c)
         return if (e == 0) 0 else 1L shl e
@@ -93,15 +93,15 @@ object Heuristics {
 
         val idxs = intArrayOf(0, 4, 8, 12, 28, 24, 20, 16)
         var mx = maxOf(
-            ((board shr 32) and 0xF).toInt(), ((board shr 36) and 0xF).toInt(),
-            ((board shr 40) and 0xF).toInt(), ((board shr 44) and 0xF).toInt(),
-            ((board shr 48) and 0xF).toInt(), ((board shr 52) and 0xF).toInt(),
-            ((board shr 56) and 0xF).toInt(), ((board shr 60) and 0xF).toInt()
+            ((board shr 32) and 0xFuL).toInt(), ((board shr 36) and 0xFuL).toInt(),
+            ((board shr 40) and 0xFuL).toInt(), ((board shr 44) and 0xFuL).toInt(),
+            ((board shr 48) and 0xFuL).toInt(), ((board shr 52) and 0xFuL).toInt(),
+            ((board shr 56) and 0xFuL).toInt(), ((board shr 60) and 0xFuL).toInt()
         )
         var inv = -1
         var ret = maxTile.toLong() shl 32
         for (i in 7 downTo 0) {
-            val v = ((board shr idxs[i]) and 0xF).toInt()
+            val v = ((board shr idxs[i]) and 0xFuL).toInt()
             if (v < mx) {
                 inv = idxs[i]
                 ret = (maxTile.toLong() shl 32) - ((mx - v).toLong() shl (4 * (7 - i)))
@@ -113,19 +113,19 @@ object Heuristics {
         ret = ret shl 9
 
         if (inv != -1) {
-            val invVal = ((board shr inv) and 0xF).toInt()
+            val invVal = ((board shr inv) and 0xFuL).toInt()
             if ((inv and 0b1100) != 0b1100) {
-                if (inv < 16) ret += valCmp(((board shr (inv + 4)) and 0xF).toInt(), invVal)
+                if (inv < 16) ret += valCmp(((board shr (inv + 4)) and 0xFuL).toInt(), invVal)
             }
-            ret += valCmp(((board shr (inv + 16)) and 0xF).toInt(), invVal)
+            ret += valCmp(((board shr (inv + 16)) and 0xFuL).toInt(), invVal)
             if ((inv and 0b1100) != 0) {
-                if (inv >= 16) ret += valCmp(((board shr (inv - 4)) and 0xF).toInt(), invVal)
+                if (inv >= 16) ret += valCmp(((board shr (inv - 4)) and 0xFuL).toInt(), invVal)
             }
         } else {
-            ret += valCmp(((board shr 32) and 0xF).toInt(), ((board shr 16) and 0xF).toInt()) +
-                    valCmp(((board shr 36) and 0xF).toInt(), ((board shr 20) and 0xF).toInt()) +
-                    valCmp(((board shr 40) and 0xF).toInt(), ((board shr 24) and 0xF).toInt()) +
-                    valCmp(((board shr 44) and 0xF).toInt(), ((board shr 28) and 0xF).toInt())
+            ret += valCmp(((board shr 32) and 0xFuL).toInt(), ((board shr 16) and 0xFuL).toInt()) +
+                    valCmp(((board shr 36) and 0xFuL).toInt(), ((board shr 20) and 0xFuL).toInt()) +
+                    valCmp(((board shr 40) and 0xFuL).toInt(), ((board shr 24) and 0xFuL).toInt()) +
+                    valCmp(((board shr 44) and 0xFuL).toInt(), ((board shr 28) and 0xFuL).toInt())
         }
         return ret
     }

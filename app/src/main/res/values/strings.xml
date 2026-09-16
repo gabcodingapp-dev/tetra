@@ -12,4 +12,11 @@
 4. Tetra reads the board and swipes for you.\n\n
 Best with the classic 2048 color palette. Works on\n
 websites and most 2048 apps. Pause anytime via the bubble.</string>
+
+    <string name="bubble_label">T</string>
+    <string name="status_starting">Stopped — press ▶ Start when your 2048 board is on screen.</string>
+    <string name="stats_placeholder">Max tile: — · Moves: 0</string>
+    <string name="speed_default">⚡ 0.5s</string>
+    <string name="overlay_hint">Open your 2048 app, then ⌖ Align to frame the board. If Tetra pauses on game over, start a new round and press ▶ Start.</string>
+    <string name="quit_tetra">✕ Quit Tetra</string>
 </resources>

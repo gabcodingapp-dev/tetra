@@ -20,6 +20,7 @@ class CalibrationView @JvmOverloads constructor(
 ) : View(context, attrs) {
 
     private val rect = RectF()
+    private val density = resources.displayMetrics.density
     private val dimPaint = Paint().apply { color = Color.argb(140, 0, 0, 0) }
     private val gridPaint = Paint().apply {
         color = Color.WHITE
@@ -51,7 +52,6 @@ class CalibrationView @JvmOverloads constructor(
         textAlign = Paint.Align.CENTER
     }
 
-    private val density = resources.displayMetrics.density
     private val tol = 26f * density
 
     private var mode = MODE_NONE

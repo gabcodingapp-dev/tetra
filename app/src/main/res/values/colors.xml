@@ -9,5 +9,6 @@
     <color name="tetra_text_dim">#9A98B0</color>
     <color name="tetra_good">#57D98A</color>
     <color name="tetra_bad">#FF6B6B</color>
+    <color name="tetra_warn">#F7B733</color>
     <color name="ic_launcher_background">#1B1B26</color>
 </resources>
