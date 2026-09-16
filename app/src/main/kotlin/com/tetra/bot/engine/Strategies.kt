@@ -97,7 +97,7 @@ interface Solver {
  * Expectimax search with a cached transposition table. Ported from
  * ExpectimaxDepthStrategy.hpp + ExpectimaxStrategy.hpp. depth <= 0 uses the depth picker.
  */
-class ExpectimaxSolver(val depth: Int, heuristicIdx: Int, cacheLimit: Int = MAX_CACHE) : Solver {
+class ExpectimaxSolver(val depth: Int, heuristicIdx: Int, val cacheLimit: Int = MAX_CACHE) : Solver {
     private val evaluator: (ULong) -> Long = Heuristics.ALL[heuristicIdx]
 
     private val cache = LongLongMap(USUAL_CACHE)
