@@ -28,7 +28,8 @@ class LongLongMap(initialCapacity: Int) {
 
     operator fun get(key: Long): Long? {
         var i = index(key)
-        while (keys[i] != EMPTY) {
+        var probes = 0
+        while (keys[i] != EMPTY && probes++ <= mask) {
             if (keys[i] == key) return vals[i]
             i = (i + 1) and mask
         }
@@ -37,14 +38,31 @@ class LongLongMap(initialCapacity: Int) {
 
     fun set(key: Long, value: Long) {
         var i = index(key)
-        while (keys[i] != EMPTY && keys[i] != key) i = (i + 1) and mask
-        val isNew = keys[i] == EMPTY
-        keys[i] = key
-        vals[i] = value
-        if (isNew) {
-            size++
-            if (size * 10 > keys.size * 9) rehash(keys.size shl 1)
+        var firstDel = -1
+        var probes = 0
+        while (keys[i] != EMPTY && probes++ <= mask) {
+            if (keys[i] == key) {
+                vals[i] = value
+                return
+            }
+            if (keys[i] == DELETED && firstDel < 0) firstDel = i
+            i = (i + 1) and mask
         }
+        if (firstDel >= 0) {
+            // recycle a tombstones slot so erases don't accumulate forever
+            keys[firstDel] = key
+            vals[firstDel] = value
+        } else if (keys[i] == EMPTY) {
+            keys[i] = key
+            vals[i] = value
+        } else {
+            // table fully occupied (all live/deleted, no EMPTY) — compact and retry
+            rehash(keys.size shl 1)
+            set(key, value)
+            return
+        }
+        size++
+        if (size * 10 > keys.size * 9) rehash(keys.size shl 1)
     }
 
     fun erase(key: Long) {

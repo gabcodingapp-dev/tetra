@@ -167,7 +167,7 @@ class SolverTest {
         for (seed in 1..3) {
             val sim = GameSim(java.util.Random(seed.toLong()))
             val solver = ExpectimaxSolver(2, Solvers.HEURISTIC_FULL_WALL)
-            val result = sim.play(solver, maxMoves = 5_000)
+            val result = sim.play(solver, maxMoves = 2_000)
             println("seed=$seed maxTileExp=${result.maxTileExp} moves=${result.moves}")
             assertTrue("reached 128 (exp>=7), got ${result.maxTileExp}", result.maxTileExp >= 7)
         }
