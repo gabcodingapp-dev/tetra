@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Tetra</string>
+    <string name="a11y_name">Tetra — 2048 auto-player</string>
+    <string name="a11y_desc">Reads a visible 2048 board from the screen and automatically swipes to play it with an AI strategy. Used only to take screenshots and inject swipe gestures on the 2048 grid you calibrated.</string>
+    <string name="notif_title">Tetra is running</string>
+    <string name="notif_text">Tap the bubble to control the bot</string>
+    <string name="how_to">How to use:\n
+1. Open your 2048 game and start a new game.\n
+2. Tap the floating T bubble, then ⌖ Align.\n
+3. Drag the square over the 4×4 board and save.\n
+4. Tetra reads the board and swipes for you.\n\n
+Best with the classic 2048 color palette. Works on\n
+websites and most 2048 apps. Pause anytime via the bubble.</string>
+</resources>

@@ -1,0 +1,11 @@
+The AI engine (Board, Heuristics, Expectimax, Minimax, Greedy) is a Kotlin port
+of the MIT-licensed project <https://github.com/qpwoeirut/2048-solver>
+Copyright (c) 2022 qpwoeirut.
+
+Original source files: game.hpp, util.hpp, heuristics.hpp,
+strategies/ExpectimaxStrategy.hpp, strategies/ExpectimaxDepthStrategy.hpp,
+strategies/MinimaxStrategy.hpp. The board bit-tricks (transpose, tile masks)
+follow nneonneo's 2048-ai as referenced in the original repository.
+
+MIT License text for the original work is available at:
+https://github.com/qpwoeirut/2048-solver/blob/main/LICENSE

@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.Tetra" parent="Theme.Material3.Dark.NoActionBar">
+        <item name="colorPrimary">@color/tetra_accent</item>
+        <item name="colorOnPrimary">#1B1B26</item>
+        <item name="colorSecondary">@color/tetra_accent_dark</item>
+        <item name="android:colorBackground">@color/tetra_bg</item>
+        <item name="colorSurface">@color/tetra_surface</item>
+        <item name="android:statusBarColor">@color/tetra_bg</item>
+        <item name="android:navigationBarColor">@color/tetra_bg</item>
+    </style>
+
+    <style name="Theme.Tetra.Translucent" parent="Theme.Tetra">
+        <item name="android:windowIsTranslucent">true</item>
+        <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="android:windowDrawsSystemBarBackgrounds">false</item>
+        <item name="android:windowNoTitle">true</item>
+    </style>
+
+    <style name="TetraButton" parent="Widget.Material3.Button">
+        <item name="android:fontFamily">sans-serif-medium</item>
+        <item name="android:textSize">14sp</item>
+        <item name="cornerRadius">14dp</item>
+    </style>
+
+    <style name="TetraChip" parent="Widget.Material3.Button">
+        <item name="android:textSize">13sp</item>
+        <item name="android:minWidth">0dp</item>
+        <item name="android:minHeight">0dp</item>
+        <item name="android:paddingLeft">12dp</item>
+        <item name="android:paddingRight">12dp</item>
+        <item name="android:paddingTop">8dp</item>
+        <item name="android:paddingBottom">8dp</item>
+        <item name="cornerRadius">20dp</item>
+        <item name="backgroundTint">@color/tetra_surface_hi</item>
+    </style>
+</resources>
