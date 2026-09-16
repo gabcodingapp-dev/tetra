@@ -148,9 +148,9 @@ class SolverTest {
     @Test
     fun openersReturnValidMoves() {
         val solvers = listOf(
-            ExpectimaxSolver(2, Heuristics.HEURISTIC_CORNER),
-            MinimaxSolver(2, Heuristics.HEURISTIC_CORNER),
-            GreedySolver(Heuristics.HEURISTIC_CORNER)
+            ExpectimaxSolver(2, Solvers.HEURISTIC_CORNER),
+            MinimaxSolver(2, Solvers.HEURISTIC_CORNER),
+            GreedySolver(Solvers.HEURISTIC_CORNER)
         )
         for (s in solvers) {
             val sim = GameSim(java.util.Random(7))
@@ -165,8 +165,8 @@ class SolverTest {
     @Test
     fun expectimaxReaches128() {
         for (seed in 1..3) {
-            val sim = GameSim(java.util.Random(seed))
-            val solver = ExpectimaxSolver(3, Heuristics.HEURISTIC_FULL_WALL)
+            val sim = GameSim(java.util.Random(seed.toLong()))
+            val solver = ExpectimaxSolver(3, Solvers.HEURISTIC_FULL_WALL)
             val result = sim.play(solver)
             println("seed=$seed maxTileExp=${result.maxTileExp} moves=${result.moves}")
             assertTrue("reached 128 (exp>=7), got ${result.maxTileExp}", result.maxTileExp >= 7)
