@@ -107,6 +107,8 @@ class OverlayService : Service() {
 
         bubbleView?.setOnTouchListener(bubbleTouch)
         root?.findViewById<View>(R.id.close_btn)?.setOnClickListener { setPanelVisible(false) }
+        root?.findViewById<View>(R.id.title_tv)?.setOnTouchListener(headerDrag)
+        root?.findViewById<View>(R.id.resize_grip)?.setOnTouchListener(panelResizeTouch)
         startBtn?.setOnClickListener { pressStart() }
         pauseBtn?.setOnClickListener { pressPause() }
         stopBtn?.setOnClickListener { pressStop() }
@@ -116,6 +118,7 @@ class OverlayService : Service() {
         root?.findViewById<View>(R.id.auto_align_btn)?.setOnClickListener { requestAutoDetect() }
         root?.findViewById<View>(R.id.quit_btn)?.setOnClickListener { stopSelf() }
 
+        applyPanelWidth()
         paintWidgets()
         observe()
     }
@@ -158,11 +161,93 @@ class OverlayService : Service() {
         }
     }
 
+    /** Drag the panel by its header row. */
+    private val headerDrag = View.OnTouchListener { _, event ->
+        when (event.action) {
+            MotionEvent.ACTION_DOWN -> {
+                dragging = false
+                startRawX = event.rawX
+                startRawY = event.rawY
+                startWindowX = params?.x ?: 0
+                startWindowY = params?.y ?: 0
+                true
+            }
+            MotionEvent.ACTION_MOVE -> {
+                val dx = event.rawX - startRawX
+                val dy = event.rawY - startRawY
+                if (Math.abs(dx) > dpTol() || Math.abs(dy) > dpTol()) dragging = true
+                if (dragging && params != null) {
+                    params!!.x = startWindowX + dx.toInt()
+                    params!!.y = startWindowY + dy.toInt()
+                    wm.updateViewLayout(root, params)
+                }
+                true
+            }
+            MotionEvent.ACTION_UP -> {
+                dragging = false
+                true
+            }
+            else -> false
+        }
+    }
+
+    /** Resize the panel horizontally by dragging the grip at the bottom. */
+    private var gripStartX = 0f
+    private var gripWidth = 0
+    private val panelResizeTouch = View.OnTouchListener { _, event ->
+        when (event.action) {
+            MotionEvent.ACTION_DOWN -> {
+                gripStartX = event.rawX
+                gripWidth = panelView?.layoutParams?.width ?: dp(Prefs.panelWidth)
+                true
+            }
+            MotionEvent.ACTION_MOVE -> {
+                val panel = panelView
+                if (panel != null) {
+                    val dm = resources.displayMetrics
+                    val newW = (gripWidth + (event.rawX - gripStartX).toInt())
+                        .coerceIn(dp(200), dm.widthPixels - dp(70))
+                    panel.layoutParams = LinearLayout.LayoutParams(newW, LinearLayout.LayoutParams.WRAP_CONTENT)
+                    Prefs.panelWidth = (newW / dm.density).toInt()
+                }
+                true
+            }
+            MotionEvent.ACTION_UP -> {
+                shiftPanelOnScreen()
+                true
+            }
+            else -> false
+        }
+    }
+
+    private fun applyPanelWidth() {
+        val panel = panelView ?: return
+        panel.layoutParams = LinearLayout.LayoutParams(dp(Prefs.panelWidth), LinearLayout.LayoutParams.WRAP_CONTENT)
+    }
+
+    private var panelOpenByUser = true
+
+    /** Keep the panel out of the way (and out of screenshots!) while the bot plays. */
+    private fun syncPanelForPhase(phase: BotState.Phase) {
+        val visible = panelView?.visibility == View.VISIBLE
+        when (phase) {
+            BotState.Phase.RUNNING -> {
+                if (visible) {
+                    panelOpenByUser = true
+                    setPanelVisible(false)
+                }
+            }
+            else -> {
+                if (!visible && panelOpenByUser) setPanelVisible(true)
+            }
+        }
+    }
+
     /** Keep the whole panel on screen after it expands alongside the bubble. */
     private fun shiftPanelOnScreen() {
         val lp = params ?: return
         val dm = resources.displayMetrics
-        val totalW = dp(58) + dp(6) * 2 + dp(280) + dp(4)
+        val totalW = dp(58) + dp(6) * 2 + dp(Prefs.panelWidth) + dp(4)
         val maxLeft = dm.widthPixels - totalW
         if (lp.x > maxLeft) {
             lp.x = maxOf(0, maxLeft)
@@ -301,6 +386,7 @@ class OverlayService : Service() {
                 BotState.connected, BotState.phase
             ) { status, mt, moves, connected, phase ->
                 paintPhaseUi(phase)
+                syncPanelForPhase(phase)
                 val st = if (!connected) "⚠ Enable accessibility in Settings first" else status
                 Triple(st, mt, moves)
             }.combine(BotState.lastBoard) { base, board ->

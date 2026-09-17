@@ -38,4 +38,8 @@ object Prefs {
     var strategyId: String
         get() = sp().getString("strategy", Solvers.OPTIONS[0].first)!!
         set(v) = sp().edit().putString("strategy", v).apply()
+
+    var panelWidth: Int
+        get() = sp().getInt("panel_width", 280)
+        set(v) = sp().edit().putInt("panel_width", v.coerceIn(200, 420)).apply()
 }

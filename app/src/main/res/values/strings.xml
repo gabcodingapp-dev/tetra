@@ -19,4 +19,5 @@ websites and most 2048 apps. Pause anytime via the bubble.</string>
     <string name="speed_default">⚡ 0.5s</string>
     <string name="overlay_hint">Open your 2048 app, then ⌖ Align to frame the board. If Tetra pauses on game over, start a new round and press ▶ Start.</string>
     <string name="quit_tetra">✕ Quit Tetra</string>
+    <string name="resize_grip">⋮⋮⋮  drag to resize  ⋮⋮⋮</string>
 </resources>

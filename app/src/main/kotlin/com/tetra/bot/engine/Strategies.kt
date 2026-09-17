@@ -127,7 +127,8 @@ class ExpectimaxSolver(val depth: Int, heuristicIdx: Int, val cacheLimit: Int = 
     private var qEnd = 0
 
     override fun pickMove(board: ULong): Int {
-        val d = if (depth <= 0) pickDepth(board) - depth else depth
+        // Cap the auto depth on mobile so every move stays snappy.
+        val d = if (depth <= 0) minOf(pickDepth(board) - depth, MAX_AUTO_DEPTH) else depth
         val move = (helper(board, d, 0) and 3L).toInt()
         updateCachePointers()
         return move
@@ -224,6 +225,7 @@ class ExpectimaxSolver(val depth: Int, heuristicIdx: Int, val cacheLimit: Int = 
     companion object {
         const val CACHE_DEPTH = 2
         const val MAX_DEPTH = 10
+        const val MAX_AUTO_DEPTH = 4
         const val USUAL_CACHE = 1 shl 16
         const val MAX_CACHE = 1 shl 20
 

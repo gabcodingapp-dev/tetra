@@ -17,6 +17,7 @@ import com.tetra.bot.vision.BoardDetector
 import com.tetra.bot.vision.BoardReader
 import com.tetra.bot.vision.Roi
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
@@ -29,7 +30,12 @@ import kotlin.coroutines.resume
 
 class BotAccessibilityService : AccessibilityService() {
 
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    private val scope = CoroutineScope(
+        SupervisorJob() + Dispatchers.Default +
+            CoroutineExceptionHandler { _, t ->
+                BotState.status.value = "⚠ Bot error: ${t.message ?: t.javaClass.simpleName} — tap ▶ Start"
+            }
+    )
     private val executor by lazy { Executor { r -> Thread(r, "capture").start() } }
 
     private var reader: BoardReader? = null
@@ -62,114 +68,122 @@ class BotAccessibilityService : AccessibilityService() {
         var unchangedStreak = 0
         var stuckStreak = 0
         while (true) {
-            if (BotState.autoDetectRequested.value) {
-                performAutoDetect()
-                continue
-            }
+            // A single bad iteration must never take down the process — catch and
+            // report instead, so the bot keeps working on the next pass.
+            try {
+                when (BotState.phase.value) {
+                    BotState.Phase.STOPPED -> {
+                        BotState.status.value = "Stopped — get your 2048 board on screen, then press ▶ Start"
+                        delay(400)
+                        continue
+                    }
+                    BotState.Phase.PAUSED -> {
+                        BotState.status.value =
+                            if (BotState.autoPaused.value) "Game over — start a new game, then press ▶ Start"
+                            else "Paused — press ▶ Start to resume"
+                        delay(250)
+                        continue
+                    }
+                    BotState.Phase.RUNNING -> Unit
+                }
 
-            when (BotState.phase.value) {
-                BotState.Phase.STOPPED -> {
-                    BotState.status.value = "Stopped — get your 2048 board on screen, then press ▶ Start"
+                if (BotState.autoDetectRequested.value) {
+                    performAutoDetect()
+                    continue
+                }
+
+                if (Build.VERSION.SDK_INT < 30) {
+                    BotState.status.value = "Screenshots need Android 11+ (API 30) — this device can't run the bot"
+                    delay(2000)
+                    continue
+                }
+
+                val roi = Prefs.roi
+                if (roi == null) {
+                    BotState.status.value = "Not calibrated — tap the bubble → ⌖ Align"
                     delay(400)
                     continue
                 }
-                BotState.Phase.PAUSED -> {
-                    BotState.status.value =
-                        if (BotState.autoPaused.value) "Game over — start a new game, then press ▶ Start"
-                        else "Paused — press ▶ Start to resume"
-                    delay(250)
+
+                if (configSeen != BotState.configVersion.value) {
+                    configSeen = BotState.configVersion.value
+                    reader = BoardReader(roi)
+                    solver = Solvers.create(Prefs.strategyId)
+                }
+
+                val shot = capture()
+                if (shot == null) {
+                    BotState.status.value = "Snapshot failed — grant access and open the 2048 app"
+                    delay(500)
                     continue
                 }
-                BotState.Phase.RUNNING -> Unit
-            }
 
-            if (Build.VERSION.SDK_INT < 30) {
-                BotState.status.value = "Screenshots need Android 11+ (API 30) — this device can't run the bot"
-                delay(2000)
-                continue
-            }
+                var board: ULong? = null
+                try {
+                    board = reader?.read(shot.bmp)
+                } finally {
+                    shot.release()
+                }
+                if (board == null) {
+                    BotState.status.value = "Can't see a board — open the 2048 app"
+                    BotState.lastBoard.value = null
+                    delay(400)
+                    continue
+                }
 
-            val roi = Prefs.roi
-            if (roi == null) {
-                BotState.status.value = "Not calibrated — tap the bubble → ⌖ Align"
-                delay(400)
-                continue
-            }
-
-            if (configSeen != BotState.configVersion.value) {
-                configSeen = BotState.configVersion.value
-                reader = BoardReader(roi)
-                solver = Solvers.create(Prefs.strategyId)
-            }
-
-            val shot = capture()
-            if (shot == null) {
-                BotState.status.value = "Snapshot failed — grant access and open the 2048 app"
-                delay(500)
-                continue
-            }
-
-            var board: ULong? = null
-            try {
-                board = reader?.read(shot.bmp)
-            } finally {
-                shot.release()
-            }
-            if (board == null) {
-                BotState.status.value = "Can't see a board — open the 2048 app"
-                BotState.lastBoard.value = null
-                delay(400)
-                continue
-            }
-
-            if (Board.isGameOver(board)) {
-                BotState.status.value = "Game over — start a new game, then press ▶ Start"
-                BotState.autoPaused.value = true
-                BotState.phase.value = BotState.Phase.PAUSED
-                unchangedStreak = 0
-                delay(300)
-                continue
-            }
-
-            val prev = BotState.lastBoard.value
-            if (board == prev) {
-                unchangedStreak++
-                if (unchangedStreak >= 5) {
-                    BotState.status.value = "Board not changing — paused"
+                if (Board.isGameOver(board)) {
+                    BotState.status.value = "Game over — start a new game, then press ▶ Start"
                     BotState.autoPaused.value = true
                     BotState.phase.value = BotState.Phase.PAUSED
                     unchangedStreak = 0
+                    delay(300)
                     continue
                 }
-                delay(220)
-                continue
-            }
-            unchangedStreak = 0
-            BotState.lastBoard.value = board
-            val mt = Board.maxTile(board)
-            if (mt > 0) BotState.maxTileValue.value = 1 shl mt
-            BotState.moves.value += 1
 
-            val dir = solver?.pickMove(board) ?: 0
-            val nb = Board.makeMove(board, dir)
-            if (nb == board) {
-                stuckStreak++
-                if (stuckStreak >= 3) {
-                    BotState.status.value = "Stuck — the board isn't moving. Re-check alignment."
-                    BotState.autoPaused.value = true
-                    BotState.phase.value = BotState.Phase.PAUSED
-                    stuckStreak = 0
-                } else {
-                    delay(300)
+                val prev = BotState.lastBoard.value
+                if (board == prev) {
+                    unchangedStreak++
+                    if (unchangedStreak >= 5) {
+                        BotState.status.value = "Board not changing — paused"
+                        BotState.autoPaused.value = true
+                        BotState.phase.value = BotState.Phase.PAUSED
+                        unchangedStreak = 0
+                        continue
+                    }
+                    delay(220)
+                    continue
                 }
-                continue
-            }
-            stuckStreak = 0
-            BotState.status.value = "Swipe ${DIR_NAMES[dir]}  (${1 shl mt} tile)"
-            dispatchSwipe(dir)
+                unchangedStreak = 0
+                BotState.lastBoard.value = board
+                val mt = Board.maxTile(board)
+                if (mt > 0) BotState.maxTileValue.value = 1 shl mt
+                BotState.moves.value += 1
 
-            // give the app time to animate + spawn the new tile
-            delay(Prefs.speedMs)
+                val dir = runCatching { solver?.pickMove(board) }.getOrNull() ?: 0
+                val nb = Board.makeMove(board, dir)
+                if (nb == board) {
+                    stuckStreak++
+                    if (stuckStreak >= 3) {
+                        BotState.status.value = "Stuck — the board isn't moving. Re-check alignment."
+                        BotState.autoPaused.value = true
+                        BotState.phase.value = BotState.Phase.PAUSED
+                        stuckStreak = 0
+                    } else {
+                        delay(300)
+                    }
+                    continue
+                }
+                stuckStreak = 0
+                BotState.status.value = "Swipe ${DIR_NAMES[dir]}  (${1 shl mt} tile)"
+                dispatchSwipe(dir)
+
+                // give the app time to animate + spawn the new tile
+                delay(Prefs.speedMs)
+            } catch (t: Throwable) {
+                val msg = t.message ?: t.javaClass.simpleName
+                BotState.status.value = "⚠ Recovered: $msg — still running"
+                delay(300)
+            }
         }
     }
 
@@ -204,24 +218,30 @@ class BotAccessibilityService : AccessibilityService() {
 
     private suspend fun capture(): Shot? = withTimeoutOrNull(3000) {
         suspendCancellableCoroutine { cont ->
-            takeScreenshotCompat(
-                object : TakeScreenshotCallback {
-                    override fun onSuccess(screenshot: ScreenshotResult) {
-                        val hw = screenshot.hardwareBuffer
-                        val bmp = hw?.let { runCatching { Bitmap.wrapHardwareBuffer(it, screenshot.colorSpace) }.getOrNull() }
-                        if (bmp == null) {
-                            hw?.close()
-                            cont.resume(null)
-                        } else {
-                            cont.resume(Shot(bmp, hw))
-                        }
+            val cb = object : TakeScreenshotCallback {
+                private var done = false
+                override fun onSuccess(screenshot: ScreenshotResult) {
+                    if (done) return
+                    done = true
+                    val hw = screenshot.hardwareBuffer
+                    val bmp = hw?.let {
+                        runCatching { Bitmap.wrapHardwareBuffer(it, screenshot.colorSpace) }.getOrNull()
                     }
-
-                    override fun onFailure(errorCode: Int) {
-                        cont.resume(null)
+                    if (bmp == null) {
+                        hw?.close()
+                        runCatching { cont.resume(null) }
+                    } else {
+                        runCatching { cont.resume(Shot(bmp, hw)) }
                     }
                 }
-            )
+
+                override fun onFailure(errorCode: Int) {
+                    if (done) return
+                    done = true
+                    runCatching { cont.resume(null) }
+                }
+            }
+            takeScreenshotCompat(cb)
         }
     }
 
