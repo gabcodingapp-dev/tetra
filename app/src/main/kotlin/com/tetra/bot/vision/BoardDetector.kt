@@ -186,15 +186,16 @@ object BoardDetector {
         return if (ratio < 1.6f) t else null
     }
 
-    private fun isBeige(pixel: Int): Boolean {
+    private fun isBeige(pixel: Int, tol: Int = TOL): Boolean {
         val r = (pixel shr 16) and 0xFF
         val g = (pixel shr 8) and 0xFF
         val b = pixel and 0xFF
-        return isFrame(r, g, b) || (Math.abs(r - 205) <= TOL && Math.abs(g - 193) <= TOL && Math.abs(b - 180) <= TOL)
+        return isFrame(r, g, b, tol) ||
+            (Math.abs(r - 205) <= tol && Math.abs(g - 193) <= tol && Math.abs(b - 180) <= tol)
     }
 
-    private fun isFrame(r: Int, g: Int, b: Int): Boolean =
-        Math.abs(r - 187) <= TOL && Math.abs(g - 173) <= TOL && Math.abs(b - 160) <= TOL
+    private fun isFrame(r: Int, g: Int, b: Int, tol: Int = TOL): Boolean =
+        Math.abs(r - 187) <= tol && Math.abs(g - 173) <= tol && Math.abs(b - 160) <= tol
 
     private fun isFrame(pixel: Int): Boolean {
         val r = (pixel shr 16) and 0xFF
