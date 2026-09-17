@@ -4,6 +4,7 @@ import android.graphics.Bitmap
 import android.graphics.Rect
 import android.graphics.RectF
 import com.tetra.bot.engine.Board
+import kotlin.math.abs
 
 /** Reads a 2048 board from a screenshot region of interest. */
 class BoardReader(private val roi: Roi) {
@@ -12,7 +13,15 @@ class BoardReader(private val roi: Roi) {
     var lastRect: Rect? = null
         private set
 
-    /** Returns the bit-packed board, or null if the region is unusable. */
+    /**
+     * Returns the bit-packed board, or null if the region is unusable.
+     *
+     * Reading is adaptive: instead of requiring the exact reference palette, it
+     * derives the "empty tile" color from the sampled cells themselves (the
+     * most common early-game color) and flags any cell that clearly differs.
+     * This keeps working across color themes, dark modes and minor palette
+     * shifts, while values still use the classic palette as a best effort.
+     */
     fun read(bmp: Bitmap): ULong? {
         if (bmp.width <= 0 || bmp.height <= 0 || !roi.isValid()) return null
         // A HARDWARE (GPU) bitmap can't be sampled — never one of those here.
@@ -20,27 +29,43 @@ class BoardReader(private val roi: Roi) {
         val rect = roi.on(bmp.width, bmp.height)
         lastRect = Rect(rect.left.toInt(), rect.top.toInt(), rect.right.toInt(), rect.bottom.toInt())
         val cell = rect.width() / 4f
-        if (cell < 24f) return null
+        if (cell < 14f) return null
+
+        val s = (cell * 0.26f).toInt().coerceAtLeast(2)
+        val ox = cell * 0.5f
+        val oy = cell * 0.5f
+
+        // Pass 1: sample every cell center.
+        val samples = Array(16) { IntArray(3) }
+        for (i in 0 until 16) {
+            val r = i / 4
+            val c = i % 4
+            val px = (rect.left + c * cell + ox).toInt()
+            val py = (rect.top + r * cell + oy).toInt()
+            samples[i] = averageSample(bmp, px, py, s)
+        }
+
+        // The empty-tile reference is the sampled cell nearest the classic empty
+        // beige. Empty tiles dominate early game, so this is stable across themes.
+        val ref = samples.minByOrNull { sqDist(it, EMPTY_RGB) } ?: return null
 
         var board = 0uL
-        val s = (cell * 0.26f).toInt().coerceAtLeast(2)
-        val cx = cell * 0.5f
-        val cy = cell * 0.5f
-
-        var nonEmpty = 0
-        for (r in 0 until 4) {
-            for (c in 0 until 4) {
-                val px = (rect.left + c * cell + cx).toInt()
-                val py = (rect.top + r * cell + cy).toInt()
-                val avg = averageSample(bmp, px, py, s)
-                val exp = Palette.classify(avg[0], avg[1], avg[2])
-                if (exp in 1..15) {
-                    board = board or (exp.toULong() shl Board.nibbleOffset(r, c))
-                    nonEmpty++
-                }
+        var empty = 0
+        for (i in 0 until 16) {
+            val col = samples[i]
+            if (maxChannelDist(col, ref) > 88) {
+                var exp = Palette.classify(col[0], col[1], col[2])
+                if (exp == 0) exp = 1 // unknown theme: treat an untypable tile as a 2
+                val r = i / 4
+                val c = i % 4
+                board = board or (exp.toULong() shl Board.nibbleOffset(r, c))
+            } else {
+                empty++
             }
         }
-        if (nonEmpty < 2) return null // a real 2048 board always shows at least 2 tiles
+        // A board needs at least one tile visible; one that reads as FULL of tiles
+        // is almost certainly not over the grid.
+        if (empty < 1 || empty >= 16) return null
         return board
     }
 
@@ -61,5 +86,19 @@ class BoardReader(private val roi: Roi) {
             n++
         }
         return intArrayOf(r / n, g / n, b / n)
+    }
+
+    private fun sqDist(a: IntArray, b: IntArray): Int {
+        val dr = a[0] - b[0]
+        val dg = a[1] - b[1]
+        val db = a[2] - b[2]
+        return dr * dr + dg * dg + db * db
+    }
+
+    private fun maxChannelDist(a: IntArray, b: IntArray): Int =
+        maxOf(abs(a[0] - b[0]), abs(a[1] - b[1]), abs(a[2] - b[2]))
+
+    companion object {
+        private val EMPTY_RGB = intArrayOf(0xCD, 0xC1, 0xB4)
     }
 }

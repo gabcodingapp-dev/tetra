@@ -42,6 +42,7 @@ class BotAccessibilityService : AccessibilityService() {
     private var reader: BoardReader? = null
     private var solver: Solver? = null
     private var configSeen = -1
+    private var lastAutoAlign = 0L
 
     override fun onServiceConnected() {
         super.onServiceConnected()
@@ -101,8 +102,10 @@ class BotAccessibilityService : AccessibilityService() {
 
                 val roi = Prefs.roi
                 if (roi == null) {
-                    BotState.status.value = "Not calibrated — tap the bubble → ⌖ Align"
-                    delay(400)
+                    // First run: find the board automatically instead of asking.
+                    val ok = autoAlignFromScreenshot("Looking for the board…")
+                    if (!ok) BotState.status.value = "Not detected — tap bubble → ⌖ Align (drag the box onto the grid) and Save"
+                    delay(1200)
                     continue
                 }
 
@@ -122,12 +125,27 @@ class BotAccessibilityService : AccessibilityService() {
                 var board: ULong? = null
                 try {
                     board = reader?.read(shot.bmp)
+                    if (board == null) {
+                        // Self-heal: the saved box may not cover the grid, so try to
+                        // re-locate the board right here and retry on the next pass.
+                        val found = BoardDetector.detect(shot.bmp)
+                            ?: BoardDetector.detect(shot.bmp, relaxed = true)
+                        val newRoi = found?.let { Roi.fromRect(it, shot.bmp.width, shot.bmp.height) }
+                        if (newRoi != null && newRoi != roi) {
+                            Prefs.roi = newRoi
+                            BotState.configVersion.value += 1
+                            BotState.lastBoard.value = null
+                            BotState.status.value = "Board re-aligned automatically — retrying…"
+                        } else {
+                            BotState.status.value =
+                                "Can't see a board — tap bubble → ⌖ Align, drag the box onto the grid, Save"
+                            BotState.lastBoard.value = null
+                        }
+                    }
                 } finally {
                     shot.release()
                 }
                 if (board == null) {
-                    BotState.status.value = "Can't see a board — open the 2048 app"
-                    BotState.lastBoard.value = null
                     delay(400)
                     continue
                 }
@@ -144,6 +162,11 @@ class BotAccessibilityService : AccessibilityService() {
                 val prev = BotState.lastBoard.value
                 if (board == prev) {
                     unchangedStreak++
+                    // Swipes aren't reaching the grid — try to re-locate it before
+                    // (later) pausing, in case the box drifted off the board.
+                    if (unchangedStreak >= 3 && unchangedStreak < 5) {
+                        autoAlignFromScreenshot("Board not changing — re-aligning…")
+                    }
                     if (unchangedStreak >= 5) {
                         BotState.status.value = "Board not changing — paused"
                         BotState.autoPaused.value = true
@@ -195,23 +218,28 @@ class BotAccessibilityService : AccessibilityService() {
             BotState.status.value = "Auto-align needs Android 11+ (API 30)"
             return
         }
-        BotState.status.value = "Looking for the 2048 board…"
+        autoAlignFromScreenshot("Looking for the 2048 board…")
+    }
+
+    /** True when a board was found and saved as the new ROI (or was already set). */
+    private suspend fun autoAlignFromScreenshot(status: String): Boolean {
+        val now = System.currentTimeMillis()
+        if (now - lastAutoAlign < 2000) return false
+        lastAutoAlign = now
+        BotState.status.value = status
         val shot = capture()
         if (shot == null) {
             BotState.status.value = "Snapshot failed — open the 2048 app and retry"
-            return
+            return false
         }
         try {
             val rect = BoardDetector.detect(shot.bmp)
-            if (rect == null) {
-                BotState.status.value = "No board found — make the whole grid visible and retry"
-            } else {
-                val roi = Roi.fromRect(rect, shot.bmp.width, shot.bmp.height)
-                Prefs.roi = roi
-                BotState.configVersion.value += 1
-                BotState.lastBoard.value = null
-                BotState.status.value = "Board aligned automatically ✓ — press ▶ Start"
-            }
+            if (rect == null) return false
+            Prefs.roi = Roi.fromRect(rect, shot.bmp.width, shot.bmp.height)
+            BotState.configVersion.value += 1
+            BotState.lastBoard.value = null
+            BotState.status.value = "Board aligned ✓ — press ▶ Start"
+            return true
         } finally {
             shot.release()
         }

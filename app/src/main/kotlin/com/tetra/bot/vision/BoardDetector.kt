@@ -16,10 +16,13 @@ object BoardDetector {
 
     private const val TOL = 30
 
-    fun detect(bmp: Bitmap): RectF? {
+    fun detect(bmp: Bitmap, relaxed: Boolean = false): RectF? {
         val w = bmp.width
         val h = bmp.height
         if (w < 240 || h < 240) return null
+        val tol = if (relaxed) TOL * 2 else TOL
+        val minSideFrac = if (relaxed) 0.22f else 0.28f
+        val maxSideFrac = if (relaxed) 1.0f else 0.95f
 
         // ---- 1) bounding box of beige (frame + empty tile) pixels ----
         val step = (minOf(w, h) / 220).coerceIn(2, 8)
@@ -30,7 +33,7 @@ object BoardDetector {
         var count = 0
         for (y in 0 until h step step) {
             for (x in 0 until w step step) {
-                if (isBeige(bmp.getPixel(x, y))) {
+                if (isBeige(bmp.getPixel(x, y), tol)) {
                     if (x < minX) minX = x
                     if (x > maxX) maxX = x
                     if (y < minY) minY = y
@@ -44,9 +47,9 @@ object BoardDetector {
         val bboxW = maxX - minX
         val bboxH = maxY - minY
         val minScreen = minOf(w, h).toFloat()
-        if (bboxW < minScreen * 0.28f || bboxH < minScreen * 0.28f) return null
+        if (bboxW < minScreen * minSideFrac || bboxH < minScreen * minSideFrac) return null
         // A board shouldn't cover almost the entire screen — too much beige is likely noise.
-        if (maxOf(bboxW, bboxH) > minScreen * 0.95f) return null
+        if (maxOf(bboxW, bboxH) > minScreen * maxSideFrac) return null
 
         // ---- 2) locate the 3 interior vertical gap lines ----
         val cy = (minY + maxY) / 2

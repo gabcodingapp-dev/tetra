@@ -53,6 +53,13 @@ class OverlayService : Service() {
 
     private var alignRoot: FrameLayout? = null
 
+    // Running state: the floating UI must stay OUT of the bot's screenshots,
+    // so we shrink + park it while playing and restore it on pause/stop.
+    private var wasParked = false
+    private var parkedX = 0
+    private var parkedY = 0
+    private var panelOpenBeforeRun = true
+
     private var dragging = false
     private var startRawX = 0f
     private var startRawY = 0f
@@ -270,6 +277,35 @@ class OverlayService : Service() {
         BotState.status.value = "Detecting the 2048 board…"
     }
 
+    /**
+     * While the bot RUNS its screenshots must show the game alone — a floating
+     * panel over the grid would be captured and "read" as the board. So on play
+     * the UI shrinks to the bubble and parks in a screen corner; it returns to
+     * its exact spot (and whether it was open) on pause/stop.
+     */
+    private fun syncForPhase(phase: BotState.Phase) {
+        val lp = params ?: return
+        val running = phase == BotState.Phase.RUNNING
+        if (running && !wasParked) {
+            parkedX = lp.x
+            parkedY = lp.y
+            panelOpenBeforeRun = panelView?.visibility == View.VISIBLE
+            panelView?.visibility = View.GONE
+            runCatching { wm.updateViewLayout(root, lp) }
+            val dm = resources.displayMetrics
+            lp.x = dm.widthPixels - dp(64)
+            lp.y = dp(40)
+            runCatching { wm.updateViewLayout(root, lp) }
+            wasParked = true
+        } else if (!running && wasParked) {
+            lp.x = parkedX
+            lp.y = parkedY
+            runCatching { wm.updateViewLayout(root, lp) }
+            if (panelOpenBeforeRun) panelView?.visibility = View.VISIBLE else panelView?.visibility = View.GONE
+            wasParked = false
+        }
+    }
+
     /** Open the live, resizable alignment box over the game. */
     private fun showAlignWindow() {
         if (alignRoot != null) return
@@ -390,6 +426,7 @@ class OverlayService : Service() {
                 BotState.connected, BotState.phase
             ) { status, mt, moves, connected, phase ->
                 paintPhaseUi(phase)
+                syncForPhase(phase)
                 val st = if (!connected) "⚠ Enable accessibility in Settings first" else status
                 Triple(st, mt, moves)
             }.combine(BotState.lastBoard) { base, board ->
