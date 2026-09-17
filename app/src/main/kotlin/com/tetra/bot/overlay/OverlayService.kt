@@ -342,7 +342,7 @@ class OverlayService : Service() {
         val h = dm.heightPixels
         val bw = dp(64)
         val bh = dp(58)
-        val roiScreen = Prefs.roi?.on(w.toFloat(), h.toFloat())?.let {
+        val roiScreen = Prefs.roi?.on(w, h)?.let {
             Rect(it.left.toInt(), it.top.toInt(), it.right.toInt(), it.bottom.toInt())
         }
         val candidates = listOf(

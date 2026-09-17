@@ -126,7 +126,7 @@ class BotAccessibilityService : AccessibilityService() {
                 // Never read or swipe while our own floating UI covers the grid —
                 // the panel's preview text would be mistaken for the board.
                 val ov = BotState.overlayRect.value
-                val roiScreen = roi.on(shot.bmp.width.toFloat(), shot.bmp.height.toFloat()).let {
+                val roiScreen = roi.on(shot.bmp.width, shot.bmp.height).let {
                     Rect(it.left.toInt(), it.top.toInt(), it.right.toInt(), it.bottom.toInt())
                 }
                 if (ov != null && Rect.intersects(ov, roiScreen)) {
