@@ -27,6 +27,8 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withTimeoutOrNull
+import java.io.File
+import java.io.FileOutputStream
 import java.util.concurrent.Executor
 import kotlin.coroutines.resume
 
@@ -74,6 +76,11 @@ class BotAccessibilityService : AccessibilityService() {
             // A single bad iteration must never take down the process — catch and
             // report instead, so the bot keeps working on the next pass.
             try {
+                if (BotState.debugShotRequested.value) {
+                    takeDebugShot()
+                    continue
+                }
+
                 when (BotState.phase.value) {
                     BotState.Phase.STOPPED -> {
                         BotState.status.value = "Stopped — get your 2048 board on screen, then press ▶ Start"
@@ -149,12 +156,13 @@ class BotAccessibilityService : AccessibilityService() {
                             BotState.configVersion.value += 1
                             BotState.lastBoard.value = null
                             BotState.status.value = "Board re-aligned automatically — retrying…"
-                        } else {
-                            BotState.status.value =
-                                "Can't see a board — tap bubble → ⌖ Align, drag the box onto the grid, Save"
-                            BotState.lastBoard.value = null
-                        }
+} else {
+                        BotState.status.value =
+                            "Can't see a board — tap bubble → ⌖ Align, drag the box onto the grid, Save"
+                        BotState.lastBoard.value = null
                     }
+                    saveDebug(shot.bmp, "noboard")
+                }
                 } finally {
                     shot.release()
                 }
@@ -178,7 +186,7 @@ class BotAccessibilityService : AccessibilityService() {
                     // Swipes aren't reaching the grid — try to re-locate it before
                     // (later) pausing, in case the box drifted off the board.
                     if (unchangedStreak >= 3 && unchangedStreak < 5) {
-                        autoAlignFromScreenshot("Board not changing — re-aligning…")
+                        autoAlignFromScreenshot("Board not changing — re-aligning…", saveTag = "stall")
                     }
                     if (unchangedStreak >= 5) {
                         BotState.status.value = "Board not changing — paused"
@@ -235,7 +243,7 @@ class BotAccessibilityService : AccessibilityService() {
     }
 
     /** True when a board was found and saved as the new ROI (or was already set). */
-    private suspend fun autoAlignFromScreenshot(status: String): Boolean {
+    private suspend fun autoAlignFromScreenshot(status: String, saveTag: String? = null): Boolean {
         val now = System.currentTimeMillis()
         if (now - lastAutoAlign < 2000) return false
         lastAutoAlign = now
@@ -246,6 +254,7 @@ class BotAccessibilityService : AccessibilityService() {
             return false
         }
         try {
+            if (saveTag != null) saveDebug(shot.bmp, saveTag)
             val rect = BoardDetector.detect(shot.bmp)
             if (rect == null) return false
             Prefs.roi = Roi.fromRect(rect, shot.bmp.width, shot.bmp.height)
@@ -256,6 +265,44 @@ class BotAccessibilityService : AccessibilityService() {
         } finally {
             shot.release()
         }
+    }
+
+    /** Grab a fresh screenshot on request (used by the panel's 📤 Send shot). */
+    private suspend fun takeDebugShot() {
+        BotState.debugShotRequested.value = false
+        if (Build.VERSION.SDK_INT < 30) {
+            BotState.status.value = "Screenshots need Android 11+ (API 30)"
+            return
+        }
+        val shot = capture()
+        if (shot == null) {
+            BotState.status.value = "Snapshot failed — open the 2048 app and retry"
+            return
+        }
+        val saved = try { saveDebug(shot.bmp, "manual") } finally { shot.release() }
+        BotState.status.value =
+            if (saved != null) "Screenshot saved ✓ — tap 📤 Send shot"
+            else "Couldn't save the screenshot"
+    }
+
+    /**
+     * Store the last captured frame as a PNG under Pictures/tetra-debug so the
+     * user can send us exactly what the bot is (or isn't) seeing.
+     */
+    private fun saveDebug(bmp: Bitmap, tag: String): File? = try {
+        val dir = File(getExternalFilesDir(null), "Pictures/tetra-debug")
+        dir.mkdirs()
+        val f = File(dir, "tetra_${tag}_${System.currentTimeMillis()}_${bmp.width}x${bmp.height}.png")
+        FileOutputStream(f).use { out -> bmp.compress(Bitmap.CompressFormat.PNG, 100, out) }
+        dir.listFiles()
+            ?.filter { it.isFile }
+            ?.sortedBy { it.lastModified() }
+            ?.take((it.size - 14).coerceAtLeast(0))
+            ?.forEach { it.delete() }
+        BotState.lastDebugShot.value = f
+        f
+    } catch (_: Throwable) {
+        null
     }
 
     private suspend fun capture(): Shot? = withTimeoutOrNull(3000) {

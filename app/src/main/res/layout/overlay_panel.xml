@@ -189,6 +189,17 @@
                     android:textSize="11sp" />
 
                 <androidx.appcompat.widget.AppCompatButton
+                    android:id="@+id/debug_share_btn"
+                    style="@style/TetraChip"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:backgroundTint="@color/tetra_accent"
+                    android:text="@string/debug_share"
+                    android:textColor="#1B1B26"
+                    android:textStyle="bold" />
+
+                <androidx.appcompat.widget.AppCompatButton
                     android:id="@+id/quit_btn"
                     style="@style/TetraChip"
                     android:layout_width="match_parent"

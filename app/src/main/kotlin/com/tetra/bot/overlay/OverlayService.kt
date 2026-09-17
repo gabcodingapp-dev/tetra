@@ -19,6 +19,7 @@ import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.core.app.NotificationCompat
+import androidx.core.content.FileProvider
 import com.tetra.bot.CalibrationView
 import com.tetra.bot.MainActivity
 import com.tetra.bot.R
@@ -124,6 +125,7 @@ class OverlayService : Service() {
         strategyBtn?.setOnClickListener { cycleStrategy() }
         root?.findViewById<View>(R.id.calibrate_btn)?.setOnClickListener { showAlignWindow() }
         root?.findViewById<View>(R.id.auto_align_btn)?.setOnClickListener { requestAutoDetect() }
+        root?.findViewById<View>(R.id.debug_share_btn)?.setOnClickListener { onDebugShare() }
         root?.findViewById<View>(R.id.quit_btn)?.setOnClickListener { stopSelf() }
 
         applyPanelWidth()
@@ -283,6 +285,30 @@ class OverlayService : Service() {
     private fun requestAutoDetect() {
         BotState.autoDetectRequested.value = true
         BotState.status.value = "Detecting the 2048 board…"
+    }
+
+    /** Let the user send us exactly what the bot sees, so failures are debuggable. */
+    private fun onDebugShare() {
+        val f = BotState.lastDebugShot.value
+        if (f == null || !f.exists()) {
+            BotState.debugShotRequested.value = true
+            BotState.status.value = "Capturing a screenshot…"
+            return
+        }
+        try {
+            val uri = FileProvider.getUriForFile(this, "$packageName.fileprovider", f)
+            val share = Intent(Intent.ACTION_SEND).apply {
+                type = "image/png"
+                putExtra(Intent.EXTRA_STREAM, uri)
+                putExtra(Intent.EXTRA_TEXT, "Tetra debug screenshot (${f.name})")
+            }
+            val chooser = Intent.createChooser(share, "Send Tetra screenshot").apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            startActivity(chooser)
+        } catch (_: Throwable) {
+            BotState.status.value = "No app can share the screenshot"
+        }
     }
 
     /**

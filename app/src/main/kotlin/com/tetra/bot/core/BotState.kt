@@ -1,6 +1,7 @@
 package com.tetra.bot.core
 
 import android.graphics.Rect
+import java.io.File
 import kotlinx.coroutines.flow.MutableStateFlow
 
 /** Shared mutable state between the overlay, the bot service and loose activities. */
@@ -37,6 +38,12 @@ object BotState {
      * the robot can never "play itself" by capturing its own panel.
      */
     val overlayRect = MutableStateFlow<Rect?>(null)
+
+    /** Most recently saved debug screenshot (PNG), so the panel can share it. */
+    val lastDebugShot = MutableStateFlow<File?>(null)
+
+    /** set by the panel to ask the bot to grab a fresh screenshot for the user to share */
+    val debugShotRequested = MutableStateFlow(false)
 
     fun resetStats() {
         lastBoard.value = null
