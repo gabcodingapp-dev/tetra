@@ -294,11 +294,10 @@ class BotAccessibilityService : AccessibilityService() {
         dir.mkdirs()
         val f = File(dir, "tetra_${tag}_${System.currentTimeMillis()}_${bmp.width}x${bmp.height}.png")
         FileOutputStream(f).use { out -> bmp.compress(Bitmap.CompressFormat.PNG, 100, out) }
-        dir.listFiles()
-            ?.filter { it.isFile }
-            ?.sortedBy { it.lastModified() }
-            ?.take((it.size - 14).coerceAtLeast(0))
-            ?.forEach { it.delete() }
+        val files = dir.listFiles()?.filter { it.isFile } ?: emptyList()
+        if (files.size > 14) {
+            files.sortedBy { it.lastModified() }.take(files.size - 14).forEach { it.delete() }
+        }
         BotState.lastDebugShot.value = f
         f
     } catch (_: Throwable) {
