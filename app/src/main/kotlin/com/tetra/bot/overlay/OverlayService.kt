@@ -42,8 +42,8 @@ class OverlayService : Service() {
 
     private var bubbleView: TextView? = null
     private var panelView: View? = null
+    private var panelScroll: View? = null
     private var statusView: TextView? = null
-    private var statsView: TextView? = null
     private var phaseChip: TextView? = null
     private var startBtn: View? = null
     private var pauseBtn: View? = null
@@ -96,8 +96,8 @@ class OverlayService : Service() {
 
         bubbleView = root?.findViewById(R.id.bubble)
         panelView = root?.findViewById(R.id.panel)
+        panelScroll = root?.findViewById(R.id.panel_scroll)
         statusView = root?.findViewById(R.id.status_tv)
-        statsView = root?.findViewById(R.id.stats_tv)
         phaseChip = root?.findViewById(R.id.phase_chip)
         startBtn = root?.findViewById(R.id.start_btn)
         pauseBtn = root?.findViewById(R.id.pause_btn)
@@ -191,24 +191,40 @@ class OverlayService : Service() {
         }
     }
 
-    /** Resize the panel horizontally by dragging the grip at the bottom. */
+    /** Resize the panel: horizontal drag changes width, vertical drag changes height. */
     private var gripStartX = 0f
-    private var gripWidth = 0
+    private var gripStartY = 0f
+    private var gripW = 0
+    private var gripH = 0
     private val panelResizeTouch = View.OnTouchListener { _, event ->
         when (event.action) {
             MotionEvent.ACTION_DOWN -> {
                 gripStartX = event.rawX
-                gripWidth = panelView?.layoutParams?.width ?: dp(Prefs.panelWidth)
+                gripStartY = event.rawY
+                gripW = panelView?.layoutParams?.width ?: dp(Prefs.panelWidth)
+                gripH = panelScroll?.let { p ->
+                    p.layoutParams?.height?.takeIf { it > 0 } ?: p.height
+                } ?: 0
                 true
             }
             MotionEvent.ACTION_MOVE -> {
                 val panel = panelView
+                val scroll = panelScroll
                 if (panel != null) {
                     val dm = resources.displayMetrics
-                    val newW = (gripWidth + (event.rawX - gripStartX).toInt())
+                    val newW = (gripW + (event.rawX - gripStartX).toInt())
                         .coerceIn(dp(200), dm.widthPixels - dp(70))
                     panel.layoutParams = LinearLayout.LayoutParams(newW, LinearLayout.LayoutParams.WRAP_CONTENT)
                     Prefs.panelWidth = (newW / dm.density).toInt()
+
+                    if (scroll != null && gripH > 0) {
+                        val newH = (gripH + (event.rawY - gripStartY).toInt())
+                            .coerceIn(dp(170), dm.heightPixels - dp(220))
+                        scroll.layoutParams = LinearLayout.LayoutParams(
+                            LinearLayout.LayoutParams.MATCH_PARENT, newH
+                        )
+                        Prefs.panelHeight = (newH / dm.density).toInt()
+                    }
                 }
                 true
             }
@@ -223,23 +239,11 @@ class OverlayService : Service() {
     private fun applyPanelWidth() {
         val panel = panelView ?: return
         panel.layoutParams = LinearLayout.LayoutParams(dp(Prefs.panelWidth), LinearLayout.LayoutParams.WRAP_CONTENT)
-    }
-
-    private var panelOpenByUser = true
-
-    /** Keep the panel out of the way (and out of screenshots!) while the bot plays. */
-    private fun syncPanelForPhase(phase: BotState.Phase) {
-        val visible = panelView?.visibility == View.VISIBLE
-        when (phase) {
-            BotState.Phase.RUNNING -> {
-                if (visible) {
-                    panelOpenByUser = true
-                    setPanelVisible(false)
-                }
-            }
-            else -> {
-                if (!visible && panelOpenByUser) setPanelVisible(true)
-            }
+        val scroll = panelScroll ?: return
+        if (Prefs.panelHeight > 0) {
+            scroll.layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, dp(Prefs.panelHeight)
+            )
         }
     }
 
@@ -386,7 +390,6 @@ class OverlayService : Service() {
                 BotState.connected, BotState.phase
             ) { status, mt, moves, connected, phase ->
                 paintPhaseUi(phase)
-                syncPanelForPhase(phase)
                 val st = if (!connected) "⚠ Enable accessibility in Settings first" else status
                 Triple(st, mt, moves)
             }.combine(BotState.lastBoard) { base, board ->

@@ -42,4 +42,8 @@ object Prefs {
     var panelWidth: Int
         get() = sp().getInt("panel_width", 280)
         set(v) = sp().edit().putInt("panel_width", v.coerceIn(200, 420)).apply()
+
+    var panelHeight: Int
+        get() = sp().getInt("panel_height", 0)
+        set(v) = sp().edit().putInt("panel_height", v.coerceIn(0, 620)).apply()
 }

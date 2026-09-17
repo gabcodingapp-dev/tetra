@@ -218,20 +218,28 @@ class BotAccessibilityService : AccessibilityService() {
 
     private suspend fun capture(): Shot? = withTimeoutOrNull(3000) {
         suspendCancellableCoroutine { cont ->
+            val holder = arrayOfNulls<Shot>(1)
+            cont.invokeOnCancellation { holder[0]?.release() }
             val cb = object : TakeScreenshotCallback {
                 private var done = false
                 override fun onSuccess(screenshot: ScreenshotResult) {
                     if (done) return
                     done = true
                     val hw = screenshot.hardwareBuffer
+                    // wrapHardwareBuffer yields a GPU-backed HARDWARE bitmap which can't be
+                    // pixel-read; copy to a software ARGB_8888 bitmap for BoardReader.
                     val bmp = hw?.let {
-                        runCatching { Bitmap.wrapHardwareBuffer(it, screenshot.colorSpace) }.getOrNull()
+                        runCatching {
+                            Bitmap.wrapHardwareBuffer(it, screenshot.colorSpace)
+                                ?.copy(Bitmap.Config.ARGB_8888, false)
+                        }.getOrNull()
                     }
                     if (bmp == null) {
                         hw?.close()
                         runCatching { cont.resume(null) }
                     } else {
-                        runCatching { cont.resume(Shot(bmp, hw)) }
+                        holder[0] = Shot(bmp, hw)
+                        runCatching { cont.resume(holder[0]) }
                     }
                 }
 

@@ -72,127 +72,132 @@
                 android:textSize="15sp" />
         </LinearLayout>
 
-        <TextView
-            android:id="@+id/status_tv"
+        <ScrollView
+            android:id="@+id/panel_scroll"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:minLines="6"
-            android:text="@string/status_starting"
-            android:textColor="@color/tetra_text"
-            android:textSize="13sp" />
+            android:scrollbars="none">
 
-        <TextView
-            android:id="@+id/stats_tv"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="4dp"
-            android:text="@string/stats_placeholder"
-            android:textColor="@color/tetra_text_dim"
-            android:textSize="12sp" />
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="10dp"
-            android:orientation="horizontal">
-
-            <androidx.appcompat.widget.AppCompatButton
-                android:id="@+id/start_btn"
-                style="@style/TetraChip"
-                android:layout_width="0dp"
+            <LinearLayout
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginEnd="6dp"
-                android:layout_weight="1"
-                android:backgroundTint="@color/transport_start"
-                android:text="▶ Start"
-                android:textColor="#1B1B26"
-                android:textStyle="bold" />
+                android:orientation="vertical">
 
-            <androidx.appcompat.widget.AppCompatButton
-                android:id="@+id/pause_btn"
-                style="@style/TetraChip"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_marginEnd="6dp"
-                android:layout_weight="1"
-                android:backgroundTint="@color/transport_pause"
-                android:text="⏸ Pause"
-                android:textColor="#1B1B26"
-                android:textStyle="bold" />
+                <TextView
+                    android:id="@+id/status_tv"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:minLines="6"
+                    android:typeface="monospace"
+                    android:text="@string/status_starting"
+                    android:textColor="@color/tetra_text"
+                    android:textSize="13sp" />
 
-            <androidx.appcompat.widget.AppCompatButton
-                android:id="@+id/stop_btn"
-                style="@style/TetraChip"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:backgroundTint="@color/transport_stop"
-                android:text="⏹ Stop"
-                android:textColor="#1B1B26"
-                android:textStyle="bold" />
-        </LinearLayout>
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="10dp"
+                    android:orientation="horizontal">
 
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:orientation="horizontal">
+                    <androidx.appcompat.widget.AppCompatButton
+                        android:id="@+id/start_btn"
+                        style="@style/TetraChip"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_marginEnd="6dp"
+                        android:layout_weight="1"
+                        android:backgroundTint="@color/transport_start"
+                        android:text="▶ Start"
+                        android:textColor="#1B1B26"
+                        android:textStyle="bold" />
 
-            <androidx.appcompat.widget.AppCompatButton
-                android:id="@+id/speed_btn"
-                style="@style/TetraChip"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_marginEnd="8dp"
-                android:layout_weight="1"
-                android:text="@string/speed_default" />
+                    <androidx.appcompat.widget.AppCompatButton
+                        android:id="@+id/pause_btn"
+                        style="@style/TetraChip"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_marginEnd="6dp"
+                        android:layout_weight="1"
+                        android:backgroundTint="@color/transport_pause"
+                        android:text="⏸ Pause"
+                        android:textColor="#1B1B26"
+                        android:textStyle="bold" />
 
-            <androidx.appcompat.widget.AppCompatButton
-                android:id="@+id/strategy_btn"
-                style="@style/TetraChip"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:singleLine="true"
-                android:ellipsize="end"
-                android:text="Expectimax" />
-        </LinearLayout>
+                    <androidx.appcompat.widget.AppCompatButton
+                        android:id="@+id/stop_btn"
+                        style="@style/TetraChip"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:backgroundTint="@color/transport_stop"
+                        android:text="⏹ Stop"
+                        android:textColor="#1B1B26"
+                        android:textStyle="bold" />
+                </LinearLayout>
 
-        <androidx.appcompat.widget.AppCompatButton
-            android:id="@+id/calibrate_btn"
-            style="@style/TetraChip"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:text="⌖ Align board" />
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:orientation="horizontal">
 
-        <androidx.appcompat.widget.AppCompatButton
-            android:id="@+id/auto_align_btn"
-            style="@style/TetraChip"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:text="🔍 Auto-align"
-            android:backgroundTint="@color/tetra_good"
-            android:textStyle="bold" />
+                    <androidx.appcompat.widget.AppCompatButton
+                        android:id="@+id/speed_btn"
+                        style="@style/TetraChip"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_marginEnd="8dp"
+                        android:layout_weight="1"
+                        android:text="@string/speed_default" />
 
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="10dp"
-            android:text="@string/overlay_hint"
-            android:textColor="@color/tetra_text_dim"
-            android:textSize="11sp" />
+                    <androidx.appcompat.widget.AppCompatButton
+                        android:id="@+id/strategy_btn"
+                        style="@style/TetraChip"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:singleLine="true"
+                        android:ellipsize="end"
+                        android:text="Expectimax" />
+                </LinearLayout>
 
-        <androidx.appcompat.widget.AppCompatButton
-            android:id="@+id/quit_btn"
-            style="@style/TetraChip"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="10dp"
-            android:text="@string/quit_tetra"
-            android:backgroundTint="@color/tetra_bad" />
+                <androidx.appcompat.widget.AppCompatButton
+                    android:id="@+id/calibrate_btn"
+                    style="@style/TetraChip"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:text="⌖ Align board" />
+
+                <androidx.appcompat.widget.AppCompatButton
+                    android:id="@+id/auto_align_btn"
+                    style="@style/TetraChip"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:text="🔍 Auto-align"
+                    android:backgroundTint="@color/tetra_good"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="10dp"
+                    android:text="@string/overlay_hint"
+                    android:textColor="@color/tetra_text_dim"
+                    android:textSize="11sp" />
+
+                <androidx.appcompat.widget.AppCompatButton
+                    android:id="@+id/quit_btn"
+                    style="@style/TetraChip"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="10dp"
+                    android:text="@string/quit_tetra"
+                    android:backgroundTint="@color/tetra_bad" />
+            </LinearLayout>
+        </ScrollView>
 
         <TextView
             android:id="@+id/resize_grip"
