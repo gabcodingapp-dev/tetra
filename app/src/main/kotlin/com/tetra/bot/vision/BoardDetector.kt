@@ -21,18 +21,23 @@ object BoardDetector {
         val h = bmp.height
         if (w < 240 || h < 240) return null
         val tol = if (relaxed) TOL * 2 else TOL
-        val minSideFrac = if (relaxed) 0.22f else 0.28f
-        val maxSideFrac = if (relaxed) 1.0f else 0.95f
+        val minSideFrac = 0.20f
 
         // ---- 1) bounding box of beige (frame + empty tile) pixels ----
+        // Scan only the lower two thirds of the screen: on a classic 2048 page
+        // the top carries the beige title/score boxes, which would otherwise
+        // inflate the box beyond the actual grid (this is what made "Too big"
+        // and broke auto-align previously).
         val step = (minOf(w, h) / 220).coerceIn(2, 8)
+        val yLow = (h * (if (relaxed) 0.24f else 0.33f)).toInt()
+        val xEdge = (w * 0.015f).toInt()
         var minX = w
         var minY = h
         var maxX = -1
         var maxY = -1
         var count = 0
-        for (y in 0 until h step step) {
-            for (x in 0 until w step step) {
+        for (y in yLow until h step step) {
+            for (x in xEdge until w - xEdge step step) {
                 if (isBeige(bmp.getPixel(x, y), tol)) {
                     if (x < minX) minX = x
                     if (x > maxX) maxX = x
@@ -48,8 +53,6 @@ object BoardDetector {
         val bboxH = maxY - minY
         val minScreen = minOf(w, h).toFloat()
         if (bboxW < minScreen * minSideFrac || bboxH < minScreen * minSideFrac) return null
-        // A board shouldn't cover almost the entire screen — too much beige is likely noise.
-        if (maxOf(bboxW, bboxH) > minScreen * maxSideFrac) return null
 
         // ---- 2) locate the 3 interior vertical gap lines ----
         val cy = (minY + maxY) / 2
@@ -57,9 +60,10 @@ object BoardDetector {
         val vGaps = detectGapColumns(bmp, minX, maxX, stripRows)
 
         // ---- 3) locate the 3 interior horizontal gap lines ----
-        val cx = (minX + maxX) / 2
-        val stripCols = intArrayOf(cx - 12, cx - 8, cx - 4, cx, cx + 4, cx + 8, cx + 12)
-        val hGaps = detectGapRows(bmp, minY, maxY, stripCols)
+        // Sample the full board width: classic 2048 renders the horizontal
+        // separators within the vertical gaps, which a narrow column strip can
+        // miss (observed on real screens). Full-width rows are unambiguous.
+        val hGaps = detectGapRows(bmp, minY, maxY, minX, maxX)
 
         val triV = bestTriple(vGaps)
         val triH = bestTriple(hGaps)
@@ -80,7 +84,11 @@ object BoardDetector {
             top = triH.first - cellH
             bottom = triH.third + cellH
         } else {
-            // Less confident fallback: a square around the beige region.
+            // Less confident fallback: a square around the beige region, but only
+            // when the region is near-square — a long strip is almost certainly
+            // not a 2048 board.
+            val aspect = maxOf(bboxW, bboxH) / minOf(bboxW, bboxH).toFloat()
+            if (aspect > 1.35f) return null
             left = bboxCx - fallbackSide / 2
             top = bboxCy - fallbackSide / 2
             right = bboxCx + fallbackSide / 2
@@ -132,15 +140,16 @@ object BoardDetector {
             .map { (it.first + it.second) / 2f }
     }
 
-    private fun detectGapRows(bmp: Bitmap, y0: Int, y1: Int, cols: IntArray): List<Float> {
-        val needed = (cols.size * 3 + 2) / 5 // majority of sampled columns
+    private fun detectGapRows(bmp: Bitmap, y0: Int, y1: Int, x0: Int, x1: Int): List<Float> {
+        val gStep = (bmp.width / 170).coerceIn(3, 10)
+        val total = (x1 - x0) / gStep + 1
+        val needed = (total * 2) / 5 // frame line should cover the row almost fully
         val clusters = mutableListOf<Pair<Int, Int>>()
         var start = -1
         for (y in y0..y1) {
             var hits = 0
-            for (x in cols) {
-                val xx = x.coerceIn(0, bmp.width - 1)
-                if (isFrame(bmp.getPixel(xx, y))) hits++
+            for (x in x0..x1 step gStep) {
+                if (isFrame(bmp.getPixel(x, y))) hits++
             }
             val gap = hits >= needed
             if (gap) {
@@ -163,8 +172,12 @@ object BoardDetector {
      */
     private fun bestTriple(centers: List<Float>): Triple<Float, Float, Float>? {
         if (centers.size < 3) return null
-        // Prefer a consecutive triple whose spacing is most equal (the three
-        // interior grid lines are evenly spaced, unlike the outer frame edges).
+        // Prefer a consecutive triple whose spacing is most equal. Outer frame
+        // edges are ~equally spaced from the interior lines too, so among
+        // equally spaced triples prefer the one centered on the cluster (the
+        // true board's interior lines sit in the middle of the gap-rows list).
+        val listMid = (centers.first() + centers.last()) / 2f
+        val listSpan = listMid - centers.first()
         var best: Triple<Float, Float, Float>? = null
         var bestScore = Float.MAX_VALUE
         for (i in 0..centers.size - 3) {
@@ -172,7 +185,9 @@ object BoardDetector {
             val d1 = b - a
             val d2 = c - b
             if (d1 <= 0 || d2 <= 0) continue
-            val score = Math.abs(d1 - d2) / (d1 + d2)
+            val spacingScore = Math.abs(d1 - d2) / (d1 + d2)
+            val bal = Math.abs(b - listMid) / (listSpan + 1f) * 0.01f
+            val score = spacingScore + bal
             if (score < bestScore) {
                 bestScore = score
                 best = Triple(a, b, c)

@@ -31,7 +31,7 @@ class BoardReader(private val roi: Roi) {
         val cell = rect.width() / 4f
         if (cell < 14f) return null
 
-        val s = (cell * 0.26f).toInt().coerceAtLeast(2)
+        val inset = (cell * 0.28f).toInt().coerceAtLeast(2)
         val ox = cell * 0.5f
         val oy = cell * 0.5f
 
@@ -42,23 +42,29 @@ class BoardReader(private val roi: Roi) {
             val c = i % 4
             val px = (rect.left + c * cell + ox).toInt()
             val py = (rect.top + r * cell + oy).toInt()
-            samples[i] = averageSample(bmp, px, py, s)
+            samples[i] = cornerSample(bmp, px, py, inset)
         }
 
         // The empty-tile reference is the sampled cell nearest the classic empty
         // beige. Empty tiles dominate early game, so this is stable across themes.
         val ref = samples.minByOrNull { sqDist(it, EMPTY_RGB) } ?: return null
+        val refExp = Palette.classify(ref[0], ref[1], ref[2])
 
         var board = 0uL
         var empty = 0
         for (i in 0 until 16) {
             val col = samples[i]
-            if (maxChannelDist(col, ref) > 88) {
-                var exp = Palette.classify(col[0], col[1], col[2])
-                if (exp == 0) exp = 1 // unknown theme: treat an untypable tile as a 2
+            val exp = Palette.classify(col[0], col[1], col[2])
+            // A cell holds a tile when its palette identity differs from the empty
+            // reference (palette match is what separates the very close classic
+            // empty #CDC1B4 / tile-2 #EEE4DA pair), or when it clearly deviates
+            // in colour from the reference (unknown themes whose shades compress).
+            val isTile = exp != refExp || maxChannelDist(col, ref) > EMPTY_DELTA
+            if (isTile) {
+                val v = if (exp == 0) 1 else exp // untypable tile: treat as a 2
                 val r = i / 4
                 val c = i % 4
-                board = board or (exp.toULong() shl Board.nibbleOffset(r, c))
+                board = board or (v.toULong() shl Board.nibbleOffset(r, c))
             } else {
                 empty++
             }
@@ -69,21 +75,27 @@ class BoardReader(private val roi: Roi) {
         return board
     }
 
-    /** Average a 3x3 window of samples around the cell center (off-center weights). */
-    private fun averageSample(bmp: Bitmap, cx: Int, cy: Int, s: Int): IntArray {
+    /**
+     * Average the four corner probes around the cell center. The dark number
+     * glyphs occupy only the middle of a tile, so the corners are always pure
+     * tile background (or pure empty background) — a center-averaged window
+     * pulls glyph pixels toward the empty reference and loses tiles.
+     */
+    private fun cornerSample(bmp: Bitmap, cx: Int, cy: Int, s: Int): IntArray {
         var r = 0
         var g = 0
         var b = 0
         var n = 0
-        val offsets = intArrayOf(-s, -s, -s, 0, -s, s, 0, -s, 0, 0, 0, s, s, -s, s, 0, s, s)
-        for (i in 0 until offsets.size step 2) {
-            val x = (cx + offsets[i]).coerceIn(0, bmp.width - 1)
-            val y = (cy + offsets[i + 1]).coerceIn(0, bmp.height - 1)
-            val p = bmp.getPixel(x, y)
-            r += (p shr 16) and 0xFF
-            g += (p shr 8) and 0xFF
-            b += p and 0xFF
-            n++
+        for (dx in intArrayOf(-s, -s, s, s)) {
+            for (dy in intArrayOf(-s, s, -s, s)) {
+                val x = (cx + dx).coerceIn(0, bmp.width - 1)
+                val y = (cy + dy).coerceIn(0, bmp.height - 1)
+                val p = bmp.getPixel(x, y)
+                r += (p shr 16) and 0xFF
+                g += (p shr 8) and 0xFF
+                b += p and 0xFF
+                n++
+            }
         }
         return intArrayOf(r / n, g / n, b / n)
     }
@@ -100,5 +112,11 @@ class BoardReader(private val roi: Roi) {
 
     companion object {
         private val EMPTY_RGB = intArrayOf(0xCD, 0xC1, 0xB4)
+
+        // A cell is "still the empty background" when its biggest channel
+        // deviation from the empty reference stays under this. Classic empty and
+        // tile-2 are only ~25-45 apart on many (especially low-res) screens, so
+        // this must stay tight — palette identity does the real separating.
+        private const val EMPTY_DELTA = 20
     }
 }

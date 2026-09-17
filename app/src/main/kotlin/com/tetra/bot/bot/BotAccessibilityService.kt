@@ -46,6 +46,7 @@ class BotAccessibilityService : AccessibilityService() {
     private var solver: Solver? = null
     private var configSeen = -1
     private var lastAutoAlign = 0L
+    private var lastStableRead: ULong? = null
 
     override fun onServiceConnected() {
         super.onServiceConnected()
@@ -119,6 +120,7 @@ class BotAccessibilityService : AccessibilityService() {
 
                 if (configSeen != BotState.configVersion.value) {
                     configSeen = BotState.configVersion.value
+                    lastStableRead = null
                     reader = BoardReader(roi)
                     solver = Solvers.create(Prefs.strategyId)
                 }
@@ -168,6 +170,15 @@ class BotAccessibilityService : AccessibilityService() {
                 }
                 if (board == null) {
                     delay(400)
+                    continue
+                }
+
+                // Two-frame lock: only act when two consecutive reads agree.
+                // Mid-animation frames, stray pixels and overlay glitches are
+                // single-frame — this kills "solving" against a phantom board.
+                if (board != lastStableRead) {
+                    lastStableRead = board
+                    delay(120)
                     continue
                 }
 
