@@ -298,10 +298,13 @@ class OverlayService : Service() {
         scope.launch {
             combine(
                 BotState.status, BotState.maxTileValue, BotState.moves,
-                BotState.connected, BotState.phase, BotState.lastBoard
-            ) { status, mt, moves, connected, phase, board ->
+                BotState.connected, BotState.phase
+            ) { status, mt, moves, connected, phase ->
                 paintPhaseUi(phase)
                 val st = if (!connected) "⚠ Enable accessibility in Settings first" else status
+                Triple(st, mt, moves)
+            }.combine(BotState.lastBoard) { base, board ->
+                val (st, mt, moves) = base
                 val preview = boardPreview(board)
                 if (preview.isNotEmpty()) {
                     "$st\nMax tile: ${if (mt > 0) mt else "—"} · Moves: $moves\n$preview"
