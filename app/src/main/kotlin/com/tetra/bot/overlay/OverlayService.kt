@@ -14,13 +14,16 @@ import android.view.LayoutInflater
 import android.view.MotionEvent
 import android.view.View
 import android.view.WindowManager
+import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.core.app.NotificationCompat
+import com.tetra.bot.CalibrationView
 import com.tetra.bot.MainActivity
 import com.tetra.bot.R
 import com.tetra.bot.core.BotState
 import com.tetra.bot.core.Prefs
+import com.tetra.bot.engine.Board
 import com.tetra.bot.engine.Solvers
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -47,6 +50,8 @@ class OverlayService : Service() {
     private var stopBtn: View? = null
     private var speedBtn: TextView? = null
     private var strategyBtn: TextView? = null
+
+    private var alignRoot: FrameLayout? = null
 
     private var dragging = false
     private var startRawX = 0f
@@ -107,7 +112,8 @@ class OverlayService : Service() {
         stopBtn?.setOnClickListener { pressStop() }
         speedBtn?.setOnClickListener { cycleSpeed() }
         strategyBtn?.setOnClickListener { cycleStrategy() }
-        root?.findViewById<View>(R.id.calibrate_btn)?.setOnClickListener { openCalibration() }
+        root?.findViewById<View>(R.id.calibrate_btn)?.setOnClickListener { showAlignWindow() }
+        root?.findViewById<View>(R.id.auto_align_btn)?.setOnClickListener { requestAutoDetect() }
         root?.findViewById<View>(R.id.quit_btn)?.setOnClickListener { stopSelf() }
 
         paintWidgets()
@@ -146,7 +152,74 @@ class OverlayService : Service() {
 
     private fun setPanelVisible(visible: Boolean) {
         panelView?.visibility = if (visible) View.VISIBLE else View.GONE
-        if (visible) paintWidgets()
+        if (visible) {
+            paintWidgets()
+            shiftPanelOnScreen()
+        }
+    }
+
+    /** Keep the whole panel on screen after it expands alongside the bubble. */
+    private fun shiftPanelOnScreen() {
+        val lp = params ?: return
+        val dm = resources.displayMetrics
+        val totalW = dp(58) + dp(6) * 2 + dp(280) + dp(4)
+        val maxLeft = dm.widthPixels - totalW
+        if (lp.x > maxLeft) {
+            lp.x = maxOf(0, maxLeft)
+            wm.updateViewLayout(root, lp)
+        }
+        val maxTop = dm.heightPixels - dp(580)
+        if (lp.y > maxTop) {
+            lp.y = maxOf(0, maxTop)
+            wm.updateViewLayout(root, lp)
+        }
+    }
+
+    /** Ask the bot to auto-locate the board from a live screenshot. */
+    private fun requestAutoDetect() {
+        BotState.autoDetectRequested.value = true
+        BotState.status.value = "Detecting the 2048 board…"
+    }
+
+    /** Open the live, resizable alignment box over the game. */
+    private fun showAlignWindow() {
+        if (alignRoot != null) return
+        // Don't swipe under an alignment view.
+        if (BotState.phase.value == BotState.Phase.RUNNING) {
+            BotState.phase.value = BotState.Phase.PAUSED
+        }
+
+        val root = LayoutInflater.from(this).inflate(R.layout.align_overlay, null) as FrameLayout
+        val lp = WindowManager.LayoutParams(
+            WindowManager.LayoutParams.MATCH_PARENT,
+            WindowManager.LayoutParams.MATCH_PARENT,
+            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
+                WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+            PixelFormat.TRANSLUCENT
+        )
+        wm.addView(root, lp)
+        alignRoot = root
+
+        root.findViewById<View>(R.id.align_auto)?.setOnClickListener {
+            hideAlignWindow()
+            requestAutoDetect()
+        }
+        root.findViewById<View>(R.id.align_save)?.setOnClickListener {
+            val view = root.findViewById<CalibrationView>(R.id.align_view)
+            Prefs.roi = view.roi()
+            BotState.configVersion.value += 1
+            BotState.lastBoard.value = null
+            BotState.status.value = "Aligned ✓ — press ▶ Start"
+            hideAlignWindow()
+        }
+        root.findViewById<View>(R.id.align_cancel)?.setOnClickListener { hideAlignWindow() }
+    }
+
+    private fun hideAlignWindow() {
+        alignRoot?.let { runCatching { wm.removeView(it) } }
+        alignRoot = null
     }
 
     /** Bot required to advance a fresh round. */
@@ -196,12 +269,6 @@ class OverlayService : Service() {
         paintWidgets()
     }
 
-    private fun openCalibration() {
-        val i = Intent(this, com.tetra.bot.CalibrationActivity::class.java)
-        i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
-        startActivity(i)
-    }
-
     private fun paintWidgets() {
         paintPhaseUi(BotState.phase.value)
 
@@ -231,13 +298,33 @@ class OverlayService : Service() {
         scope.launch {
             combine(
                 BotState.status, BotState.maxTileValue, BotState.moves,
-                BotState.connected, BotState.phase
-            ) { status, mt, moves, connected, phase ->
+                BotState.connected, BotState.phase, BotState.lastBoard
+            ) { status, mt, moves, connected, phase, board ->
                 paintPhaseUi(phase)
                 val st = if (!connected) "⚠ Enable accessibility in Settings first" else status
-                "$st\nMax tile: ${if (mt > 0) mt else "—"} · Moves: $moves"
+                val preview = boardPreview(board)
+                if (preview.isNotEmpty()) {
+                    "$st\nMax tile: ${if (mt > 0) mt else "—"} · Moves: $moves\n$preview"
+                } else {
+                    "$st\nMax tile: ${if (mt > 0) mt else "—"} · Moves: $moves"
+                }
             }.collectLatest { statusView?.text = it }
         }
+    }
+
+    /** Compact 4x4 readback of the board the bot currently sees. */
+    private fun boardPreview(b: ULong?): String {
+        if (b == null) return ""
+        val sb = StringBuilder()
+        for (r in 0 until 4) {
+            for (c in 0 until 4) {
+                val e = Board.cellExponent(b, r, c)
+                val v = if (e == 0) "·" else (1 shl e).toString()
+                sb.append(v.padStart(4))
+            }
+            if (r < 3) sb.append('\n')
+        }
+        return sb.toString()
     }
 
     private fun createChannel() {
@@ -266,6 +353,7 @@ class OverlayService : Service() {
     private fun dpTol(): Int = dp(12)
 
     override fun onDestroy() {
+        hideAlignWindow()
         root?.let { runCatching { wm.removeView(it) } }
         root = null
         scope.cancel()

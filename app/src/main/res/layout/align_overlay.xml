@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <com.tetra.bot.CalibrationView
+        android:id="@+id/align_view"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent" />
+
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom|center_horizontal"
+        android:background="@drawable/panel_bg"
+        android:elevation="12dp"
+        android:orientation="horizontal"
+        android:padding="10dp">
+
+        <androidx.appcompat.widget.AppCompatButton
+            android:id="@+id/align_auto"
+            style="@style/TetraChip"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="8dp"
+            android:backgroundTint="@color/tetra_surface_hi"
+            android:text="🔍 Auto"
+            android:textColor="@color/tetra_text" />
+
+        <androidx.appcompat.widget.AppCompatButton
+            android:id="@+id/align_save"
+            style="@style/TetraChip"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="8dp"
+            android:backgroundTint="@color/tetra_accent"
+            android:text="Save"
+            android:textColor="#1B1B26"
+            android:textStyle="bold" />
+
+        <androidx.appcompat.widget.AppCompatButton
+            android:id="@+id/align_cancel"
+            style="@style/TetraChip"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:backgroundTint="@color/tetra_surface_hi"
+            android:text="Cancel"
+            android:textColor="@color/tetra_text" />
+    </LinearLayout>
+</FrameLayout>

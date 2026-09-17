@@ -27,6 +27,9 @@ object BotState {
     /** bumped whenever the user changes strategy/speed so the bot rebuilds its solver */
     val configVersion = MutableStateFlow(0)
 
+    /** set by the UI to ask the bot to auto-locate the board from a fresh screenshot */
+    val autoDetectRequested = MutableStateFlow(false)
+
     fun resetStats() {
         lastBoard.value = null
         maxTileValue.value = 0

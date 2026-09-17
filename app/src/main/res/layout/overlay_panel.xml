@@ -76,7 +76,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
-            android:minLines="2"
+            android:minLines="6"
             android:text="@string/status_starting"
             android:textColor="@color/tetra_text"
             android:textSize="13sp" />
@@ -165,6 +165,16 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
             android:text="⌖ Align board" />
+
+        <androidx.appcompat.widget.AppCompatButton
+            android:id="@+id/auto_align_btn"
+            style="@style/TetraChip"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="🔍 Auto-align"
+            android:backgroundTint="@color/tetra_good"
+            android:textStyle="bold" />
 
         <TextView
             android:layout_width="match_parent"

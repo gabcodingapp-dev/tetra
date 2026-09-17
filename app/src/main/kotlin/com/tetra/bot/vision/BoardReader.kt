@@ -18,10 +18,10 @@ class BoardReader(private val roi: Roi) {
         val rect = roi.on(bmp.width, bmp.height)
         lastRect = Rect(rect.left.toInt(), rect.top.toInt(), rect.right.toInt(), rect.bottom.toInt())
         val cell = rect.width() / 4f
-        if (cell < 16f) return null
+        if (cell < 24f) return null
 
         var board = 0uL
-        val s = (cell * 0.27f).toInt().coerceAtLeast(1)
+        val s = (cell * 0.26f).toInt().coerceAtLeast(2)
         val cx = cell * 0.5f
         val cy = cell * 0.5f
 
@@ -42,12 +42,13 @@ class BoardReader(private val roi: Roi) {
         return board
     }
 
+    /** Average a 3x3 window of samples around the cell center (off-center weights). */
     private fun averageSample(bmp: Bitmap, cx: Int, cy: Int, s: Int): IntArray {
         var r = 0
         var g = 0
         var b = 0
         var n = 0
-        val offsets = intArrayOf(-s, -s, -s, s, s, -s, s, s, 0, 0)
+        val offsets = intArrayOf(-s, -s, -s, 0, -s, s, 0, -s, 0, 0, 0, s, s, -s, s, 0, s, s)
         for (i in 0 until offsets.size step 2) {
             val x = (cx + offsets[i]).coerceIn(0, bmp.width - 1)
             val y = (cy + offsets[i + 1]).coerceIn(0, bmp.height - 1)

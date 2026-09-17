@@ -69,7 +69,7 @@ object Heuristics {
             (tileExp(b, 1, 3).toLong() shl 8)
         val bottom =
             (tileExp(b, 0, 0).toLong() shl 40) or (tileExp(b, 0, 1).toLong() shl 36) or (tileExp(b, 0, 2).toLong() shl 32) or (tileExp(b, 0, 3).toLong() shl 28) or
-            (tileExp(b, 1, 0).toLong() shl 12) or (tileExp(b, 1, 1).toLong() shl 16) or (tileExp(b, 1, 2).toLong() shl 20) or (tileExp(b, 0, 3).toLong() shl 24) or
+            (tileExp(b, 1, 0).toLong() shl 12) or (tileExp(b, 1, 1).toLong() shl 16) or (tileExp(b, 1, 2).toLong() shl 20) or (tileExp(b, 1, 3).toLong() shl 24) or
             (tileExp(b, 2, 0).toLong() shl 8)
         val left =
             (tileExp(b, 0, 3).toLong() shl 40) or (tileExp(b, 1, 3).toLong() shl 36) or (tileExp(b, 2, 3).toLong() shl 32) or (tileExp(b, 3, 3).toLong() shl 28) or

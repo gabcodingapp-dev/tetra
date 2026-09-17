@@ -13,7 +13,9 @@ import com.tetra.bot.core.Prefs
 import com.tetra.bot.engine.Board
 import com.tetra.bot.engine.Solver
 import com.tetra.bot.engine.Solvers
+import com.tetra.bot.vision.BoardDetector
 import com.tetra.bot.vision.BoardReader
+import com.tetra.bot.vision.Roi
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -58,7 +60,13 @@ class BotAccessibilityService : AccessibilityService() {
 
     private suspend fun runLoop() {
         var unchangedStreak = 0
+        var stuckStreak = 0
         while (true) {
+            if (BotState.autoDetectRequested.value) {
+                performAutoDetect()
+                continue
+            }
+
             when (BotState.phase.value) {
                 BotState.Phase.STOPPED -> {
                     BotState.status.value = "Stopped — get your 2048 board on screen, then press ▶ Start"
@@ -145,14 +153,52 @@ class BotAccessibilityService : AccessibilityService() {
             val dir = solver?.pickMove(board) ?: 0
             val nb = Board.makeMove(board, dir)
             if (nb == board) {
-                BotState.status.value = "Stuck — check the alignment"
+                stuckStreak++
+                if (stuckStreak >= 3) {
+                    BotState.status.value = "Stuck — the board isn't moving. Re-check alignment."
+                    BotState.autoPaused.value = true
+                    BotState.phase.value = BotState.Phase.PAUSED
+                    stuckStreak = 0
+                } else {
+                    delay(300)
+                }
                 continue
             }
+            stuckStreak = 0
             BotState.status.value = "Swipe ${DIR_NAMES[dir]}  (${1 shl mt} tile)"
             dispatchSwipe(dir)
 
             // give the app time to animate + spawn the new tile
             delay(Prefs.speedMs)
+        }
+    }
+
+    /** Auto-locate the board from a fresh screenshot and save it as the ROI. */
+    private suspend fun performAutoDetect() {
+        BotState.autoDetectRequested.value = false
+        if (Build.VERSION.SDK_INT < 30) {
+            BotState.status.value = "Auto-align needs Android 11+ (API 30)"
+            return
+        }
+        BotState.status.value = "Looking for the 2048 board…"
+        val shot = capture()
+        if (shot == null) {
+            BotState.status.value = "Snapshot failed — open the 2048 app and retry"
+            return
+        }
+        try {
+            val rect = BoardDetector.detect(shot.bmp)
+            if (rect == null) {
+                BotState.status.value = "No board found — make the whole grid visible and retry"
+            } else {
+                val roi = Roi.fromRect(rect, shot.bmp.width, shot.bmp.height)
+                Prefs.roi = roi
+                BotState.configVersion.value += 1
+                BotState.lastBoard.value = null
+                BotState.status.value = "Board aligned automatically ✓ — press ▶ Start"
+            }
+        } finally {
+            shot.release()
         }
     }
 
@@ -208,7 +254,9 @@ class BotAccessibilityService : AccessibilityService() {
         val cx = rect.centerX().toFloat()
         val cy = rect.centerY().toFloat()
 
-        val inset = cell * 0.45f
+        // Start inside the first tile, finish inside the last tile — a long,
+        // fast flick the 2048 app reliably recognises as a swipe.
+        val inset = cell * 0.30f
         val s = when (dir) {
             0 -> Swipe(rect.right - inset, cy, rect.left + inset, cy)   // left
             1 -> Swipe(cx, rect.bottom - inset, cx, rect.top + inset)   // up
@@ -217,7 +265,7 @@ class BotAccessibilityService : AccessibilityService() {
         }
 
         val path = Path().apply { moveTo(s.x1, s.y1); lineTo(s.x2, s.y2) }
-        val stroke = GestureDescription.StrokeDescription(path, 0, 150)
+        val stroke = GestureDescription.StrokeDescription(path, 0, 180)
         val gesture = GestureDescription.Builder().addStroke(stroke).build()
         dispatchGesture(gesture, null, null)
     }

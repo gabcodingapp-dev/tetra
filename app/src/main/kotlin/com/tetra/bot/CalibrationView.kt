@@ -8,11 +8,13 @@ import android.graphics.RectF
 import android.util.AttributeSet
 import android.view.MotionEvent
 import android.view.View
+import com.tetra.bot.core.Prefs
 import com.tetra.bot.vision.Roi
 
 /**
  * Overlay square drawn over the real game so the user can frame the
- * 4x4 board. Drag to move, or drag a corner/edge to resize.
+ * 4x4 board. Drag to move, or drag a corner/edge to resize — the rect
+ * always stays square so rows and columns map cleanly to the grid.
  */
 class CalibrationView @JvmOverloads constructor(
     context: Context,
@@ -58,18 +60,40 @@ class CalibrationView @JvmOverloads constructor(
     private var handle = 0
     private var lastX = 0f
     private var lastY = 0f
+    private var anchorX = 0f
+    private var anchorY = 0f
+    private var restored = false
 
     override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
         super.onSizeChanged(w, h, oldw, oldh)
         if (w == 0 || h == 0) return
-        if (rect.isEmpty) {
-            val side = minOf(w, h) * 0.72f
-            val cx = w / 2f
-            val cy = h / 2f
-            rect.set(cx - side / 2, cy - side / 2, cx + side / 2, cy + side / 2)
+        if (!restored) {
+            restored = true
+            restoreAndPosition()
         }
         clamp()
         invalidate()
+    }
+
+    /** First layout: use the last saved alignment, otherwise center a default box. */
+    private fun restoreAndPosition() {
+        val dm = resources.displayMetrics
+        val sw = dm.widthPixels.toFloat()
+        val sh = dm.heightPixels.toFloat()
+        val prev = Prefs.roi
+        if (prev != null && prev.isValid()) {
+            rect.set(
+                prev.left * sw,
+                prev.top * sh,
+                prev.right * sw,
+                prev.bottom * sh
+            )
+        } else {
+            val side = minOf(sw, sh) * 0.72f
+            val cx = sw / 2f
+            val cy = sh / 2f
+            rect.set(cx - side / 2, cy - side / 2, cx + side / 2, cy + side / 2)
+        }
     }
 
     override fun onDraw(canvas: Canvas) {
@@ -99,7 +123,10 @@ class CalibrationView @JvmOverloads constructor(
             "Align the square over the 4×4 board",
             width / 2f, rect.top - 34f * density, textPaint
         )
-        canvas.drawText("Drag corners or edges to resize · drag inside to move", width / 2f, rect.top - 12f * density, subPaint)
+        canvas.drawText(
+            "Drag corners or edges to resize · drag inside to move",
+            width / 2f, rect.top - 12f * density, subPaint
+        )
     }
 
     private fun handlePoints(): List<Pair<Float, Float>> = listOf(
@@ -128,6 +155,7 @@ class CalibrationView @JvmOverloads constructor(
                 if (hit >= 0) {
                     mode = MODE_RESIZE
                     handle = hit
+                    setupResizeAnchor()
                 } else if (rect.contains(event.x, event.y)) {
                     mode = MODE_MOVE
                 } else {
@@ -143,21 +171,8 @@ class CalibrationView @JvmOverloads constructor(
                 lastX = event.x
                 lastY = event.y
                 when (mode) {
-                    MODE_MOVE -> {
-                        rect.offset(dx, dy)
-                    }
-                    MODE_RESIZE -> {
-                        when (handle) {
-                            0 -> { rect.left = event.x; rect.top = event.y }
-                            1 -> { rect.right = event.x; rect.top = event.y }
-                            2 -> { rect.left = event.x; rect.bottom = event.y }
-                            3 -> { rect.right = event.x; rect.bottom = event.y }
-                            4 -> rect.top = event.y
-                            5 -> rect.bottom = event.y
-                            6 -> rect.left = event.x
-                            7 -> rect.right = event.x
-                        }
-                    }
+                    MODE_MOVE -> rect.offset(dx, dy)
+                    MODE_RESIZE -> resizeFrom(anchorX, anchorY, event.x, event.y)
                 }
                 clamp()
                 invalidate()
@@ -171,23 +186,76 @@ class CalibrationView @JvmOverloads constructor(
         return super.onTouchEvent(event)
     }
 
-    private fun clamp() {
-        val minSide = 120f * density
-        if (rect.right - rect.left < minSide) {
-            if (handle == 0 || handle == 2 || handle == 6) rect.left = rect.right - minSide
-            else rect.right = rect.left + minSide
+    /** Freeze the opposite corner/edge so the square grows around it. */
+    private fun setupResizeAnchor() {
+        when (handle) {
+            0 -> { anchorX = rect.right; anchorY = rect.bottom } // drag top-left
+            1 -> { anchorX = rect.left; anchorY = rect.bottom }  // drag top-right
+            2 -> { anchorX = rect.right; anchorY = rect.top }    // drag bottom-left
+            3 -> { anchorX = rect.left; anchorY = rect.top }     // drag bottom-right
+            else -> { anchorX = -1f; anchorY = -1f }             // edge handles: handled inline
         }
-        if (rect.bottom - rect.top < minSide) {
-            if (handle == 0 || handle == 1 || handle == 4) rect.top = rect.bottom - minSide
-            else rect.bottom = rect.top + minSide
-        }
-        rect.left = rect.left.coerceAtLeast(-40f * density)
-        rect.top = rect.top.coerceAtLeast(-40f * density)
-        rect.right = rect.right.coerceAtMost(width + 40f * density)
-        rect.bottom = rect.bottom.coerceAtMost(height + 40f * density)
     }
 
-    fun roi(): Roi = Roi.fromRect(rect, width, height)
+    /** Rebuild a square rect from a fixed anchor + the live finger position. */
+    private fun resizeFrom(ax: Float, ay: Float, px: Float, py: Float) {
+        when (handle) {
+            0, 1, 2, 3 -> {
+                val side = maxOf(Math.abs(px - ax), Math.abs(py - ay))
+                when (handle) {
+                    0 -> rect.set(ax - side, ay - side, ax, ay)
+                    1 -> rect.set(ax, ay - side, ax + side, ay)
+                    2 -> rect.set(ax - side, ay, ax, ay + side)
+                    3 -> rect.set(ax, ay, ax + side, ay + side)
+                }
+            }
+            4 -> { // top edge, bottom edge fixed
+                val side = Math.abs(py - rect.bottom)
+                val cx = px
+                rect.set(cx - side / 2, rect.bottom - side, cx + side / 2, rect.bottom)
+            }
+            5 -> { // bottom edge, top edge fixed
+                val side = Math.abs(py - rect.top)
+                val cx = px
+                rect.set(cx - side / 2, rect.top, cx + side / 2, rect.top + side)
+            }
+            6 -> { // left edge, right edge fixed
+                val side = Math.abs(px - rect.right)
+                val cy = py
+                rect.set(rect.right - side, cy - side / 2, rect.right, cy + side / 2)
+            }
+            7 -> { // right edge, left edge fixed
+                val side = Math.abs(px - rect.left)
+                val cy = py
+                rect.set(rect.left, cy - side / 2, rect.left + side, cy + side / 2)
+            }
+        }
+    }
+
+    private fun clamp() {
+        val minSide = 120f * density
+        val side = maxOf(rect.width(), minSide).coerceAtMost(minOf(width.toFloat(), height.toFloat()))
+        val cx = rect.centerX().coerceIn(side / 2, width - side / 2)
+        val cy = rect.centerY().coerceIn(side / 2, height - side / 2)
+        rect.set(cx - side / 2, cy - side / 2, cx + side / 2, cy + side / 2)
+    }
+
+    /**
+     * The normalized on-screen region. Uses the REAL screen size (not the view
+     * size) so the result matches the full-resolution screenshot the bot reads.
+     */
+    fun roi(): Roi {
+        val dm = resources.displayMetrics
+        val screenW = dm.widthPixels
+        val screenH = dm.heightPixels
+        val rectInScreen = RectF(
+            rect.left * (screenW.toFloat() / width),
+            rect.top * (screenH.toFloat() / height),
+            rect.right * (screenW.toFloat() / width),
+            rect.bottom * (screenH.toFloat() / height)
+        )
+        return Roi.fromRect(rectInScreen, screenW, screenH)
+    }
 
     companion object {
         private const val MODE_NONE = 0
