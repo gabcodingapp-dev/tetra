@@ -15,6 +15,8 @@ class BoardReader(private val roi: Roi) {
     /** Returns the bit-packed board, or null if the region is unusable. */
     fun read(bmp: Bitmap): ULong? {
         if (bmp.width <= 0 || bmp.height <= 0 || !roi.isValid()) return null
+        // A HARDWARE (GPU) bitmap can't be sampled — never one of those here.
+        if (bmp.config == android.graphics.Bitmap.Config.HARDWARE) return null
         val rect = roi.on(bmp.width, bmp.height)
         lastRect = Rect(rect.left.toInt(), rect.top.toInt(), rect.right.toInt(), rect.bottom.toInt())
         val cell = rect.width() / 4f

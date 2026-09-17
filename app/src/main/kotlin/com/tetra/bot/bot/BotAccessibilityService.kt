@@ -4,6 +4,7 @@ import android.accessibilityservice.AccessibilityService
 import android.accessibilityservice.GestureDescription
 import android.annotation.SuppressLint
 import android.graphics.Bitmap
+import android.graphics.Canvas
 import android.graphics.Path
 import android.os.Build
 import android.view.Display
@@ -226,14 +227,13 @@ class BotAccessibilityService : AccessibilityService() {
                     if (done) return
                     done = true
                     val hw = screenshot.hardwareBuffer
-                    // wrapHardwareBuffer yields a GPU-backed HARDWARE bitmap which can't be
-                    // pixel-read; copy to a software ARGB_8888 bitmap for BoardReader.
-                    val bmp = hw?.let {
-                        runCatching {
-                            Bitmap.wrapHardwareBuffer(it, screenshot.colorSpace)
-                                ?.copy(Bitmap.Config.ARGB_8888, false)
-                        }.getOrNull()
+                    // takeScreenshot yields a GPU-backed HARDWARE bitmap whose pixels
+                    // CANNOT be read ("pixel access is not supported on this config").
+                    // Force a software ARGB_8888 copy, with a canvas raster fallback.
+                    val wrapped = hw?.let {
+                        runCatching { Bitmap.wrapHardwareBuffer(it, screenshot.colorSpace) }.getOrNull()
                     }
+                    val bmp = wrapped?.let { softwareCopy(it) }
                     if (bmp == null) {
                         hw?.close()
                         runCatching { cont.resume(null) }
@@ -300,6 +300,28 @@ class BotAccessibilityService : AccessibilityService() {
 
     /** Start/end points of a swipe expressed in screen pixels. */
     private data class Swipe(val x1: Float, val y1: Float, val x2: Float, val y2: Float)
+
+    /**
+     * Guarantee a software, pixel-readable bitmap regardless of the source
+     * config — never returns a HARDWARE (GPU) bitmap.
+     */
+    private fun softwareCopy(src: Bitmap): Bitmap? {
+        val cfg = src.config
+        // Ordinary software configs are already pixel-readable — pass through.
+        if (cfg != null && cfg != Bitmap.Config.HARDWARE && cfg != Bitmap.Config.RGBA_F16) {
+            return src
+        }
+        var copy = runCatching { src.copy(Bitmap.Config.ARGB_8888, false) }.getOrNull()
+        if (copy == null || copy.config == Bitmap.Config.HARDWARE) {
+            // Last resort: rasterize onto a fresh software canvas.
+            copy = runCatching {
+                val c = Bitmap.createBitmap(src.width, src.height, Bitmap.Config.ARGB_8888)
+                Canvas(c).drawBitmap(src, 0f, 0f, null)
+                c
+            }.getOrNull()
+        }
+        return copy
+    }
 
     private class Shot(val bmp: Bitmap, val buffer: android.hardware.HardwareBuffer) {
         fun release() {
