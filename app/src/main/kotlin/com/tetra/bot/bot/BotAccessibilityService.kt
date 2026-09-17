@@ -6,6 +6,7 @@ import android.annotation.SuppressLint
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Path
+import android.graphics.Rect
 import android.os.Build
 import android.view.Display
 import android.view.accessibility.AccessibilityEvent
@@ -119,6 +120,18 @@ class BotAccessibilityService : AccessibilityService() {
                 if (shot == null) {
                     BotState.status.value = "Snapshot failed — grant access and open the 2048 app"
                     delay(500)
+                    continue
+                }
+
+                // Never read or swipe while our own floating UI covers the grid —
+                // the panel's preview text would be mistaken for the board.
+                val ov = BotState.overlayRect.value
+                val roiScreen = roi.on(shot.bmp.width.toFloat(), shot.bmp.height.toFloat()).let {
+                    Rect(it.left.toInt(), it.top.toInt(), it.right.toInt(), it.bottom.toInt())
+                }
+                if (ov != null && Rect.intersects(ov, roiScreen)) {
+                    BotState.status.value = "⚠ Move the Tetra bubble/panel off the board — it blocks the bot's view"
+                    delay(600)
                     continue
                 }
 

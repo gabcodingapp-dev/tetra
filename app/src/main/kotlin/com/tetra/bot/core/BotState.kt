@@ -1,5 +1,6 @@
 package com.tetra.bot.core
 
+import android.graphics.Rect
 import kotlinx.coroutines.flow.MutableStateFlow
 
 /** Shared mutable state between the overlay, the bot service and loose activities. */
@@ -29,6 +30,13 @@ object BotState {
 
     /** set by the UI to ask the bot to auto-locate the board from a fresh screenshot */
     val autoDetectRequested = MutableStateFlow(false)
+
+    /**
+     * The overlay window's current screen rect (null until the overlay is up).
+     * The bot refuses to read or swipe while this overlaps the board's ROI, so
+     * the robot can never "play itself" by capturing its own panel.
+     */
+    val overlayRect = MutableStateFlow<Rect?>(null)
 
     fun resetStats() {
         lastBoard.value = null

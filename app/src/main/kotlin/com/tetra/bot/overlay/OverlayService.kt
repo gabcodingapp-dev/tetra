@@ -8,6 +8,7 @@ import android.app.Service
 import android.content.Context
 import android.content.Intent
 import android.graphics.PixelFormat
+import android.graphics.Rect
 import android.os.IBinder
 import android.view.Gravity
 import android.view.LayoutInflater
@@ -148,6 +149,7 @@ class OverlayService : Service() {
                     params!!.x = startWindowX + dx.toInt()
                     params!!.y = startWindowY + dy.toInt()
                     wm.updateViewLayout(root, params)
+                    publishBounds()
                 }
                 true
             }
@@ -166,6 +168,7 @@ class OverlayService : Service() {
             paintWidgets()
             shiftPanelOnScreen()
         }
+        publishBounds()
     }
 
     /** Drag the panel by its header row. */
@@ -187,11 +190,13 @@ class OverlayService : Service() {
                     params!!.x = startWindowX + dx.toInt()
                     params!!.y = startWindowY + dy.toInt()
                     wm.updateViewLayout(root, params)
+                    publishBounds()
                 }
                 true
             }
             MotionEvent.ACTION_UP -> {
                 dragging = false
+                publishBounds()
                 true
             }
             else -> false
@@ -233,10 +238,12 @@ class OverlayService : Service() {
                         Prefs.panelHeight = (newH / dm.density).toInt()
                     }
                 }
+                publishBounds()
                 true
             }
             MotionEvent.ACTION_UP -> {
                 shiftPanelOnScreen()
+                publishBounds()
                 true
             }
             else -> false
@@ -269,6 +276,7 @@ class OverlayService : Service() {
             lp.y = maxOf(0, maxTop)
             wm.updateViewLayout(root, lp)
         }
+        publishBounds()
     }
 
     /** Ask the bot to auto-locate the board from a live screenshot. */
@@ -280,8 +288,9 @@ class OverlayService : Service() {
     /**
      * While the bot RUNS its screenshots must show the game alone — a floating
      * panel over the grid would be captured and "read" as the board. So on play
-     * the UI shrinks to the bubble and parks in a screen corner; it returns to
-     * its exact spot (and whether it was open) on pause/stop.
+     * the UI shrinks to the bubble and parks in whichever screen corner does NOT
+     * cover the board box; it returns to its exact spot (and whether it was
+     * open) on pause/stop.
      */
     private fun syncForPhase(phase: BotState.Phase) {
         val lp = params ?: return
@@ -292,18 +301,61 @@ class OverlayService : Service() {
             panelOpenBeforeRun = panelView?.visibility == View.VISIBLE
             panelView?.visibility = View.GONE
             runCatching { wm.updateViewLayout(root, lp) }
-            val dm = resources.displayMetrics
-            lp.x = dm.widthPixels - dp(64)
-            lp.y = dp(40)
+            val (px, py) = pickParkCorner()
+            lp.x = px
+            lp.y = py
             runCatching { wm.updateViewLayout(root, lp) }
+            publishBounds()
             wasParked = true
         } else if (!running && wasParked) {
             lp.x = parkedX
             lp.y = parkedY
             runCatching { wm.updateViewLayout(root, lp) }
             if (panelOpenBeforeRun) panelView?.visibility = View.VISIBLE else panelView?.visibility = View.GONE
+            publishBounds()
             wasParked = false
         }
+    }
+
+    /** Wait — publish the window rect so the bot can verify it isn't blocking the board. */
+    private fun publishBounds() {
+        val lp = params ?: return
+        val panel = panelView
+        val shown = panel?.visibility == View.VISIBLE
+        val w = when {
+            shown && panel != null && panel.width > 0 -> panel.width
+            shown -> dp(Prefs.panelWidth)
+            else -> dp(58)
+        }
+        val h = when {
+            shown && panel != null && panel.height > 0 -> panel.height
+            shown -> dp(240)
+            else -> dp(58)
+        }
+        BotState.overlayRect.value = Rect(lp.x, lp.y, lp.x + w, lp.y + h)
+    }
+
+    /** A corner for the parked bubble that never covers the board's ROI box. */
+    private fun pickParkCorner(): Pair<Int, Int> {
+        val dm = resources.displayMetrics
+        val w = dm.widthPixels
+        val h = dm.heightPixels
+        val bw = dp(64)
+        val bh = dp(58)
+        val roiScreen = Prefs.roi?.on(w.toFloat(), h.toFloat())?.let {
+            Rect(it.left.toInt(), it.top.toInt(), it.right.toInt(), it.bottom.toInt())
+        }
+        val candidates = listOf(
+            w - bw to dp(28),        // top-right
+            0 to dp(28),             // top-left
+            0 to h - bh - dp(60),    // bottom-left
+            w - bw to h - bh - dp(60) // bottom-right
+        )
+        for ((x, y) in candidates) {
+            val at = Rect(x, y, x + bw, y + bh)
+            if (roiScreen == null || !Rect.intersects(at, roiScreen)) return x to y
+        }
+        return candidates[0]
     }
 
     /** Open the live, resizable alignment box over the game. */
@@ -482,6 +534,7 @@ class OverlayService : Service() {
     private fun dpTol(): Int = dp(12)
 
     override fun onDestroy() {
+        BotState.overlayRect.value = null
         hideAlignWindow()
         root?.let { runCatching { wm.removeView(it) } }
         root = null
